@@ -364,3 +364,5 @@ FodyWeavers.xsd
 
 # ignore public folder 
 SPA/wwwroot/*
+
+.vscode/
