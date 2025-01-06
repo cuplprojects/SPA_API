@@ -355,6 +355,7 @@ namespace SPA.Controllers
                 // Filter projects based on userId
                 var projectsByUser = allProjects
                     .Where(p => p.UserAssigned.Contains(userId))
+                    .OrderByDescending(p=>p.ProjectId)
                     .ToList();
 
                 if (projectsByUser == null || !projectsByUser.Any())
