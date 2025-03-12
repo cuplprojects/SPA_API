@@ -303,8 +303,17 @@ namespace SPA.Controllers
             {
                 throw new Exception($"No matching key found for course name '{responseConfig.CourseName}'.");
             }
+            var fieldconfigs = _firstDbContext.FieldConfigs.Where(fc => fc.ProjectId == projectId && fc.FieldName == "Booklet Series").ToList();
 
-            string bookletSet = (string)omrDataObject["Booklet Series"];
+            string bookletSet = "";
+            if (!fieldconfigs.Any())
+            {
+                bookletSet = "A";
+            }
+            else
+            {
+                bookletSet = (string)omrDataObject["Booklet Series"];
+            }
             var sets = JsonConvert.DeserializeObject<List<Sets>>(matchingKey.KeyData);
             var setValues = sets.Select(s => s.Set).ToList();
             string matchedSet = setValues.FirstOrDefault(s => s.Trim().Last().ToString().Equals(bookletSet, StringComparison.OrdinalIgnoreCase));
