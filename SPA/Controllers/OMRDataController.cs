@@ -129,6 +129,7 @@ namespace SPA.Controllers
             var jsonObject = JObject.Parse(jsonData);
             return jsonObject["Roll Number"]?.ToString();
         }
+
         [HttpDelete("Scanned")]
         public async Task<IActionResult> DeleteScanned(string WhichDatabase, int ProjectId)
         {
