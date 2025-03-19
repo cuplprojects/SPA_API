@@ -304,6 +304,8 @@ namespace SPA.Controllers
                     var existingRecord = await _firstDbContext.Keyss
                         .FirstOrDefaultAsync(k => k.ProjectId == ProjectId && k.CourseName == courseName);
 
+                    var existingScore = await _firstDbContext.Scores.Where(k => k.ProjectId == ProjectId && k.CourseName == courseName).ToListAsync();
+
                     if (existingRecord == null)
                     {
                         return NotFound($"No record found with ProjectId {ProjectId} and CourseName {courseName}.");
@@ -372,7 +374,7 @@ namespace SPA.Controllers
 
                         // Update the existing record with new data
                         existingRecord.KeyData = System.Text.Json.JsonSerializer.Serialize(updatedData);
-
+                        _firstDbContext.RemoveRange(existingScore);
 
                         // Save changes to the database
                         await _firstDbContext.SaveChangesAsync();
@@ -409,6 +411,9 @@ namespace SPA.Controllers
                     var existingRecord = await _secondDbContext.Keyss
                         .FirstOrDefaultAsync(k => k.ProjectId == ProjectId && k.CourseName == courseName);
 
+                    var existingScore = await _secondDbContext.Scores.Where(k => k.ProjectId == ProjectId && k.CourseName == courseName).ToListAsync();
+
+
                     if (existingRecord == null)
                     {
                         return NotFound($"No record found with ProjectId {ProjectId} and CourseName {courseName}.");
@@ -477,7 +482,7 @@ namespace SPA.Controllers
 
                         // Update the existing record with new data
                         existingRecord.KeyData = System.Text.Json.JsonSerializer.Serialize(updatedData);
-
+                        _secondDbContext.RemoveRange(existingScore);
                         // Save changes to the database
                         await _secondDbContext.SaveChangesAsync();
                         var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);

@@ -148,6 +148,7 @@ namespace SPA.Controllers
             if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
             {
                 UserID = userId;
+                Console.WriteLine($"UserID: {UserID}");
             }
 
             try
@@ -162,16 +163,17 @@ namespace SPA.Controllers
                 // Choose database context based on WhichDatabase parameter
                 if (WhichDatabase.Equals("Local", StringComparison.OrdinalIgnoreCase))
                 {
+                    Console.WriteLine("Using Local Database");
                     omrDataQuery = _firstDbContext.OMRdatas.Where(od => od.ProjectId == projectId && od.Status == 1);
                     correctedOmrQuery = _firstDbContext.CorrectedOMRDatas.Where(co => co.ProjectId == projectId);
                     keyQuery = _firstDbContext.Keyss.Where(k => k.ProjectId == projectId);
                     responseConfigQuery = _firstDbContext.ResponseConfigs.Where(u => u.ProjectId == projectId);
                     scoreQuery = _firstDbContext.Scores.Where(s => s.ProjectId == projectId);
                     ambiguousQuesQuery = _firstDbContext.AmbiguousQues.Where(s => s.ProjectId == projectId);
-
                 }
                 else
                 {
+                    Console.WriteLine("Using Online Database");
                     if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
                     {
                         return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
@@ -184,6 +186,7 @@ namespace SPA.Controllers
                     ambiguousQuesQuery = _secondDbContext.AmbiguousQues.Where(_co => _co.ProjectId == projectId);
                 }
 
+                Console.WriteLine("Fetching data from the database...");
                 var omrDataList = await omrDataQuery.Select(u => u.OmrData).ToListAsync();
                 var correctedOmrList = await correctedOmrQuery.Select(u => u.CorrectedOmrData).ToListAsync();
                 var keys = await keyQuery.ToListAsync();
@@ -192,9 +195,11 @@ namespace SPA.Controllers
 
                 if (!omrDataList.Any() || !correctedOmrList.Any() || !keys.Any() || !responseConfigs.Any())
                 {
+                    Console.WriteLine("Required data not found.");
                     return NotFound("Required data not found.");
                 }
 
+                Console.WriteLine("Combining OMR data...");
                 var resultsList = new List<object>();
                 var combinedOmrDataList = omrDataList.Concat(correctedOmrList).ToList();
 
@@ -203,8 +208,11 @@ namespace SPA.Controllers
                     JObject omrDataObject = JObject.Parse(omrData);
                     string rollNumber = (string)omrDataObject["Roll Number"];
 
+                    Console.WriteLine($"Processing OMR data for Roll Number: {rollNumber}");
+
                     if (existingScores.Any(s => s.RollNumber.Equals(rollNumber, StringComparison.OrdinalIgnoreCase)))
                     {
+                        Console.WriteLine($"Skipping Roll Number {rollNumber} as score already exists.");
                         continue; // Skip processing if score already exists for this roll number
                     }
 
@@ -212,6 +220,8 @@ namespace SPA.Controllers
                     var registrationData = WhichDatabase.Equals("Local", StringComparison.OrdinalIgnoreCase)
                         ? await _firstDbContext.RegistrationDatas.FirstOrDefaultAsync(rd => rd.RollNumber == rollNumber && rd.ProjectId == projectId)
                         : await _secondDbContext.RegistrationDatas.FirstOrDefaultAsync(rd => rd.RollNumber == rollNumber && rd.ProjectId == projectId);
+
+                    Console.WriteLine(registrationData == null ? $"No registration data for Roll Number {rollNumber}" : $"Found registration data for Roll Number {rollNumber}");
 
                     List<string> subjectCodes = new List<string>();
                     if (registrationData != null)
@@ -234,51 +244,57 @@ namespace SPA.Controllers
                         }
                     }
 
+                    Console.WriteLine($"Subject Codes: {string.Join(", ", subjectCodes)}");
+
                     var hasSubjectCode = subjectCodes.Any();
                     var courseNameMatches = hasSubjectCode && subjectCodes.Contains(courseName, StringComparer.OrdinalIgnoreCase);
                     var matchedResponseConfigs = responseConfigs.Where(r => r.CourseName.Equals(courseName, StringComparison.OrdinalIgnoreCase)).ToList();
 
                     if (registrationData == null)
                     {
-                        // Case 3: No Registration Data
+                        Console.WriteLine("Case 3: No Registration Data");
                         if (!matchedResponseConfigs.Any())
                         {
+                            Console.WriteLine("No matching response config found.");
                             continue; // Skip if no matching response config found
                         }
 
                         foreach (var responseConfig in matchedResponseConfigs)
                         {
-                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID);
+                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID, courseName);
                         }
                     }
                     else if (!hasSubjectCode)
                     {
-                        // Case 1: No Subject Code in Registration Data
+                        Console.WriteLine("Case 1: No Subject Code in Registration Data");
                         if (!matchedResponseConfigs.Any())
                         {
+                            Console.WriteLine("No matching response config found.");
                             continue; // Skip if no matching response config found
                         }
 
                         foreach (var responseConfig in matchedResponseConfigs)
                         {
-                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID);
+                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID, courseName);
                         }
                     }
                     else if (courseNameMatches)
                     {
-                        // Case 2: Multiple Subject Codes in Registration Data
+                        Console.WriteLine("Case 2: Multiple Subject Codes in Registration Data");
                         if (!matchedResponseConfigs.Any())
                         {
+                            Console.WriteLine("No matching response config found.");
                             continue; // Skip if no matching response config found
                         }
 
                         foreach (var responseConfig in matchedResponseConfigs)
                         {
-                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID);
+                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID, courseName);
                         }
                     }
                 }
 
+                Console.WriteLine("Saving changes to the database...");
                 if (WhichDatabase.Equals("Local", StringComparison.OrdinalIgnoreCase))
                 {
                     await _firstDbContext.SaveChangesAsync();
@@ -288,13 +304,16 @@ namespace SPA.Controllers
                     await _secondDbContext.SaveChangesAsync();
                 }
 
+                Console.WriteLine("Returning results...");
                 return resultsList;
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"An error occurred: {ex.Message}");
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred: " + ex.Message);
             }
         }
+
 
         private async Task ProcessOmrData(JObject omrDataObject, ResponseConfig responseConfig, List<Keys> keys, List<object> resultsList, int projectId, string whichDatabase, int userID)
         {
@@ -303,7 +322,6 @@ namespace SPA.Controllers
             {
                 throw new Exception($"No matching key found for course name '{responseConfig.CourseName}'.");
             }
-
             string bookletSet = "";
             if ((whichDatabase.Equals("Local", StringComparison.OrdinalIgnoreCase)))
             {
@@ -343,25 +361,24 @@ namespace SPA.Controllers
             string matchedSet = setValues.FirstOrDefault(s => s.Trim().Last().ToString().Equals(bookletSet, StringComparison.OrdinalIgnoreCase));
             var ambiguousQuestions = await GetAmbiguousQuestionsAsync(projectId,courseName, whichDatabase);
             var ambquestion = ambiguousQuestions.Where(u => u.SetCode.Equals(bookletSet)).ToList();
-
             if (matchedSet == null)
             {
                 Console.WriteLine($"Booklet Set '{bookletSet}' does not match with any of the sets.");
                 return;
             }
-
+        
             var matchedSetObject = sets.FirstOrDefault(s => s.Set == matchedSet);
             if (matchedSetObject == null)
             {
                 throw new Exception($"Set '{matchedSet}' not found in sets list for project {projectId}");
             }
-
+        
             string answersJsonString = (string)omrDataObject["Answers"];
             if (string.IsNullOrEmpty(answersJsonString))
             {
                 throw new Exception("Answers field is missing or not in expected format.");
             }
-
+        
             JObject answersObject;
             try
             {
@@ -371,13 +388,13 @@ namespace SPA.Controllers
             {
                 throw new Exception("Error parsing Answers field: " + ex.Message);
             }
-
+        
             var allQuestions = matchedSetObject.Questions;
             var sectionResults = new List<SectionResult>();
             double totalScore = 0;
-
+        
             var sections = JsonConvert.DeserializeObject<List<Models.NonDBModels.Section>>(responseConfig.SectionsJson) ?? new List<Models.NonDBModels.Section>();
-
+        
             foreach (var section in sections)
             {
                 var sectionQuestions = allQuestions.Where(q =>
@@ -388,10 +405,10 @@ namespace SPA.Controllers
                     }
                     return false;
                 }).ToList();
-
-
+        
+        
                 var sectionResultsData = CalculateResults(answersObject, sectionQuestions, section.MarksCorrect, section.MarksWrong, section.NegativeMarking, ambquestion);
-
+        
                 sectionResults.Add(new SectionResult
                 {
                     SectionName = section.Name,
@@ -399,10 +416,10 @@ namespace SPA.Controllers
                     TotalWrongAnswers = sectionResultsData.TotalWrongAnswers,
                     TotalScoreSub = sectionResultsData.TotalScore
                 });
-
+        
                 totalScore += sectionResultsData.TotalScore;
             }
-
+        
             var omrDetails = new
             {
                 RollNumber = (string)omrDataObject["Roll Number"],
@@ -411,9 +428,9 @@ namespace SPA.Controllers
                 SectionResults = sectionResults,
                 TotalScore = totalScore
             };
-
+        
             resultsList.Add(omrDetails);
-
+        
             var score = new Score
             {
                 ScoreId = GetNextScoreId(whichDatabase),
@@ -423,7 +440,7 @@ namespace SPA.Controllers
                 RollNumber = omrDetails.RollNumber,
                 ScoreData = JsonConvert.SerializeObject(sectionResults)
             };
-
+        
             if (whichDatabase.Equals("Local", StringComparison.OrdinalIgnoreCase))
             {
                 _firstDbContext.Scores.Add(score);
@@ -436,7 +453,7 @@ namespace SPA.Controllers
                 {
                     throw new Exception("Online database is not available.");
                 }
-
+        
                 _secondDbContext.Scores.Add(score);
                 string scoreJson = JsonConvert.SerializeObject(score);
                 _changeLogger.LogForDBSync("Insert", "Scores", scoreJson, whichDatabase, userID);
@@ -447,106 +464,105 @@ namespace SPA.Controllers
 
 
 
-        private Results CalculateResults(JObject answersObject, List<Question> questions, double marksCorrect, double marksWrong, bool negativeMarking, List<AmbiguousQue> ambiguousQueList)
-        {
-            int totalCorrectAnswers = 0;
-            int totalWrongAnswers = 0;
-/*            int totalOptionE = 0;*/
-            double totalScore = 0;
-
-            // Lists to store ambiguous question numbers and their corresponding marking IDs
-            List<int> ambiguousQuestionNumbers = new List<int>();
-            Dictionary<int, int> ambiguousMarkingIds = new Dictionary<int, int>();
-
-            // Populate the lists with data from ambiguousQueList
-            if (ambiguousQueList != null)
+        private Results CalculateResults(
+       JObject answersObject,
+       List<Question> questions,
+       double marksCorrect,
+       double marksWrong,
+       bool negativeMarking,
+       List<AmbiguousQue> ambiguousQue)
             {
-                foreach (var ambiguousQue in ambiguousQueList)
+        int totalCorrectAnswers = 0;
+        int totalWrongAnswers = 0;
+    /*            int totalOptionE = 0;*/
+        double totalScore = 0;
+    
+        // Lists to store ambiguous question numbers and their corresponding marking IDs
+        List<int> ambiguousQuestionNumbers = new List<int>();
+        Dictionary<int, int> ambiguousMarkingIds = new Dictionary<int, int>();
+    
+        // Populate the lists with data from ambiguousQueList
+        if (ambiguousQueList != null)
+        {
+            foreach (var ambiguousQue in ambiguousQueList)
+            {
+                ambiguousQuestionNumbers.Add(ambiguousQue.QuestionNumber);
+                ambiguousMarkingIds[ambiguousQue.QuestionNumber] = ambiguousQue.MarkingId;
+            }
+        }
+    
+        foreach (var question in questions)
+        {
+            string answerKey = question.QuestionNo.ToString();
+            string userAnswer = answersObject[answerKey]?.ToString();
+            string correctAnswer = question.Answer;
+            var correctAnswerArray = correctAnswer.Split(',').Select(a=>a.Trim()).ToList();
+    
+            // Check if the question matches any of the ambiguous question numbers
+            bool isAmbiguousQuestion = ambiguousQuestionNumbers.Contains(Int32.Parse(question.QuestionNo));
+    
+            // Apply MarkingId-based logic if it's an ambiguous question
+            if (isAmbiguousQuestion)
+            {
+                int markingId = ambiguousMarkingIds[Int32.Parse(question.QuestionNo)];
+                switch (markingId)
                 {
-                    ambiguousQuestionNumbers.Add(ambiguousQue.QuestionNumber);
-                    ambiguousMarkingIds[ambiguousQue.QuestionNumber] = ambiguousQue.MarkingId;
+                    case 1:
+                        totalCorrectAnswers++;
+                        continue;
+                    case 2:
+                        if (!string.IsNullOrEmpty(userAnswer))
+                        {
+                            totalCorrectAnswers++;
+                        }
+                        continue;
+                    case 3:
+                        // Don’t award marks to any candidate
+                        continue;
                 }
             }
-
-            foreach (var question in questions)
+            else
             {
-                string answerKey = question.QuestionNo.ToString();
-                string userAnswer = answersObject[answerKey]?.ToString();
-                string correctAnswer = question.Answer;
-                var correctAnswerArray = correctAnswer.Split(',').Select(a=>a.Trim()).ToList();
-
-                // Check if the question matches any of the ambiguous question numbers
-                bool isAmbiguousQuestion = ambiguousQuestionNumbers.Contains(Int32.Parse(question.QuestionNo));
-
-                // Apply MarkingId-based logic if it's an ambiguous question
-                if (isAmbiguousQuestion)
+                // Original scoring logic if no ambiguity or not an ambiguous question
+                if (!string.IsNullOrEmpty(userAnswer))
                 {
-                    int markingId = ambiguousMarkingIds[Int32.Parse(question.QuestionNo)];
-                    switch (markingId)
+                    if (correctAnswerArray.Contains(userAnswer,StringComparer.OrdinalIgnoreCase))
                     {
-                        case 1:
-                            totalCorrectAnswers++;
-                            continue;
-                        case 2:
-                            if (!string.IsNullOrEmpty(userAnswer))
-                            {
-                                totalCorrectAnswers++;
-                            }
-                            continue;
-                        case 3:
-                            // Don’t award marks to any candidate
-                            continue;
+                        totalCorrectAnswers++;
                     }
-                }
-                else
-                {
-                    // Original scoring logic if no ambiguity or not an ambiguous question
-                    if (!string.IsNullOrEmpty(userAnswer))
+                    /*else if (userAnswer.Equals("e", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (correctAnswerArray.Contains(userAnswer,StringComparer.OrdinalIgnoreCase))
-                        {
-                            totalCorrectAnswers++;
-                        }
-                        /*else if (userAnswer.Equals("e", StringComparison.OrdinalIgnoreCase))
-                        {
-                            totalOptionE++;
-                            // Skip this question
-                            continue;
-                        }*/
-                        else
-                        {
-                            totalWrongAnswers++;
-                        }
-                    }
-                   /* else
+                        totalOptionE++;
+                        // Skip this question
+                        continue;
+                    }*/
+                    else
                     {
                         totalWrongAnswers++;
-                    }*/
+                    }
                 }
+               /* else
+                {
+                    totalWrongAnswers++;
+                }*/
             }
-
-            // Calculate the final score with or without negative marking
-            totalScore += totalCorrectAnswers * marksCorrect;
-            if (negativeMarking)
-            {
-                totalScore -= totalWrongAnswers * marksWrong;
-            }
-
-            return new Results
-            {
-                TotalCorrectAnswers = totalCorrectAnswers,
-                TotalWrongAnswers = totalWrongAnswers,
-/*                TotalOptionE = totalOptionE,*/
-                TotalScore = totalScore
-            };
         }
-
-
-
-
-
-
-
+    
+        // Calculate the final score with or without negative marking
+        totalScore += totalCorrectAnswers * marksCorrect;
+        if (negativeMarking)
+        {
+            totalScore -= totalWrongAnswers * marksWrong;
+        }
+    
+        return new Results
+        {
+            TotalCorrectAnswers = totalCorrectAnswers,
+            TotalWrongAnswers = totalWrongAnswers,
+    /*                TotalOptionE = totalOptionE,*/
+            TotalScore = totalScore
+        };
+    }
 
 
 
