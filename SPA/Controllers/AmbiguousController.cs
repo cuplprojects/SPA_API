@@ -133,17 +133,18 @@ namespace SPA.Controllers
             {
                 return BadRequest(new { message = "Invalid request data" });
             }
-
+        
             // Determine the database context based on WhichDatabase parameter
             DbContext dbContext = WhichDatabase == "Local" ? (DbContext)_firstDbContext : (DbContext)_secondDbContext;
-
+        
             // Get the ProjectId from the first request (assuming all requests have the same ProjectId)
             var projectId = requests.First().ProjectId;
-
+            var courseName = requests.First().CourseName;
+        
             // Delete existing entries for the same ProjectId
-            var existingEntries = dbContext.Set<AmbiguousQue>().Where(q => q.ProjectId == projectId);
+            var existingEntries = dbContext.Set<AmbiguousQue>().Where(q => q.ProjectId == projectId && q.CourseName == courseName);
             dbContext.Set<AmbiguousQue>().RemoveRange(existingEntries);
-
+        
             // Process each request in the array
             foreach (var request in requests)
             {
@@ -156,15 +157,15 @@ namespace SPA.Controllers
                     SetCode = request.SetCode,
                     QuestionNumber = request.QuestionNumber,
                     Option = request.Option,
-                    Course = request.Course,
+                    CourseName = request.CourseName
                 };
-
+        
                 dbContext.Set<AmbiguousQue>().Add(ambiguousQuestion);
             }
-
+        
             // Save changes to the selected database
             await dbContext.SaveChangesAsync();
-
+        
             return Ok(new { message = "Marks allotted successfully" });
         }
 
