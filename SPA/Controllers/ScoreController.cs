@@ -122,11 +122,11 @@ namespace SPA.Controllers
             }
         }
 
-        private async Task<List<AmbiguousQue>> GetAmbiguousQuestionsAsync(int projectId,string courseName, string WhichDatabase)
+        private async Task<List<AmbiguousQue>> GetAmbiguousQuestionsAsync(int projectId,string CourseName ,string WhichDatabase)
         {
             if (WhichDatabase == "Local")
             {
-                return await _firstDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId && aq.Course == courseName).ToListAsync();
+                return await _firstDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId && aq.CourseName == CourseName).ToListAsync();
 
             }
             else
@@ -135,7 +135,7 @@ namespace SPA.Controllers
                 {
                     return null;
                 }
-                return await _secondDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId && aq.Course == courseName).ToListAsync();
+                return await _secondDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId && aq.CourseName == CourseName).ToListAsync();
             }
         }
 
@@ -322,7 +322,6 @@ namespace SPA.Controllers
             {
                 throw new Exception($"No matching key found for course name '{responseConfig.CourseName}'.");
             }
-        
             string bookletSet = "";
             if ((whichDatabase.Equals("Local", StringComparison.OrdinalIgnoreCase)))
             {
@@ -362,7 +361,6 @@ namespace SPA.Controllers
             string matchedSet = setValues.FirstOrDefault(s => s.Trim().Last().ToString().Equals(bookletSet, StringComparison.OrdinalIgnoreCase));
             var ambiguousQuestions = await GetAmbiguousQuestionsAsync(projectId,courseName, whichDatabase);
             var ambquestion = ambiguousQuestions.Where(u => u.SetCode.Equals(bookletSet)).ToList();
-        
             if (matchedSet == null)
             {
                 Console.WriteLine($"Booklet Set '{bookletSet}' does not match with any of the sets.");
@@ -567,10 +565,12 @@ namespace SPA.Controllers
     }
 
 
+
         private class Results
         {
             public int TotalCorrectAnswers { get; set; }
             public int TotalWrongAnswers { get; set; }
+/*            public int TotalOptionE { get; set; }*/
             public double TotalScore { get; set; }
             public Dictionary<string, int> QuestionResults { get; set; } // Include question results
         }
