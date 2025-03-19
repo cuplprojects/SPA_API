@@ -156,6 +156,7 @@ namespace SPA.Controllers
                     SetCode = request.SetCode,
                     QuestionNumber = request.QuestionNumber,
                     Option = request.Option,
+                    Course = request.Course,
                 };
 
                 dbContext.Set<AmbiguousQue>().Add(ambiguousQuestion);

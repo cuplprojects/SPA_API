@@ -122,11 +122,11 @@ namespace SPA.Controllers
             }
         }
 
-        private async Task<List<AmbiguousQue>> GetAmbiguousQuestionsAsync(int projectId, string WhichDatabase)
+        private async Task<List<AmbiguousQue>> GetAmbiguousQuestionsAsync(int projectId,string courseName, string WhichDatabase)
         {
             if (WhichDatabase == "Local")
             {
-                return await _firstDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId).ToListAsync();
+                return await _firstDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId && aq.Course == courseName).ToListAsync();
 
             }
             else
@@ -135,7 +135,7 @@ namespace SPA.Controllers
                 {
                     return null;
                 }
-                return await _secondDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId).ToListAsync();
+                return await _secondDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId && aq.Course == courseName).ToListAsync();
             }
         }
 
@@ -261,7 +261,7 @@ namespace SPA.Controllers
 
                         foreach (var responseConfig in matchedResponseConfigs)
                         {
-                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID);
+                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID, courseName);
                         }
                     }
                     else if (!hasSubjectCode)
@@ -275,7 +275,7 @@ namespace SPA.Controllers
 
                         foreach (var responseConfig in matchedResponseConfigs)
                         {
-                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID);
+                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID, courseName);
                         }
                     }
                     else if (courseNameMatches)
@@ -289,7 +289,7 @@ namespace SPA.Controllers
 
                         foreach (var responseConfig in matchedResponseConfigs)
                         {
-                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID);
+                            await ProcessOmrData(omrDataObject, responseConfig, keys, resultsList, projectId, WhichDatabase, UserID, courseName);
                         }
                     }
                 }
@@ -322,8 +322,17 @@ namespace SPA.Controllers
             {
                 throw new Exception($"No matching key found for course name '{responseConfig.CourseName}'.");
             }
+            var fieldconfigs = _firstDbContext.FieldConfigs.Where(fc => fc.ProjectId == projectId && fc.FieldName == "Booklet Series").ToList();
 
-            string bookletSet = (string)omrDataObject["Booklet Series"];
+            string bookletSet = "";
+            if (!fieldconfigs.Any())
+            {
+                bookletSet = "A";
+            }
+            else
+            {
+                bookletSet = (string)omrDataObject["Booklet Series"];
+            }
             var sets = JsonConvert.DeserializeObject<List<Sets>>(matchingKey.KeyData);
             var setValues = sets.Select(s => s.Set).ToList();
             string matchedSet = setValues.FirstOrDefault(s => s.Trim().Last().ToString().Equals(bookletSet, StringComparison.OrdinalIgnoreCase));

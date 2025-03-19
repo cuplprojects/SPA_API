@@ -14,5 +14,7 @@ namespace SPA.Models
         public string SetCode { get; set; }
         public int QuestionNumber { get; set; }
         public string? Option { get; set; }
+        [MaxLength(50)]
+        public string? Course { get; set; }
     }
 }
