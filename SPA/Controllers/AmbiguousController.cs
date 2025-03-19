@@ -50,81 +50,7 @@ namespace SPA.Controllers
 
             return Ok(fieldConfig.FieldAttributes.FirstOrDefault()?.Responses);
         }
-        /*[AllowAnonymous]
-        [HttpPost("allot-marks")]
-        public async Task<IActionResult> AllotMarks(string WhichDatabase, [FromBody] AmbiguousQue request)
-        {
-            if (request == null)
-            {
-                return BadRequest(new { message = "Invalid request data" });
-            }
-
-            // Determine the database context based on WhichDatabase parameter
-            AmbiguousQue existingQuestion;
-            if (WhichDatabase == "Local")
-            {
-                existingQuestion = await _firstDbContext.AmbiguousQues
-                    .FirstOrDefaultAsync(q => q.ProjectId == request.ProjectId
-                                              && q.SetCode == request.SetCode);
-            }
-            else
-            {
-                existingQuestion = await _secondDbContext.AmbiguousQues
-                    .FirstOrDefaultAsync(q => q.ProjectId == request.ProjectId
-                                              && q.SetCode == request.SetCode);
-            }
-
-            if (existingQuestion != null)
-            {
-                // Update existing record
-                existingQuestion.MarkingId = request.MarkingId;
-                existingQuestion.Option = request.Option;
-                existingQuestion.QuestionNumber = request.QuestionNumber;
-
-                if (WhichDatabase == "Local")
-                {
-                    _firstDbContext.AmbiguousQues.Update(existingQuestion);
-                }
-                else
-                {
-                    _secondDbContext.AmbiguousQues.Update(existingQuestion);
-                }
-            }
-            else
-            {
-                // Create a new record
-                var ambiguousQuestion = new AmbiguousQue
-                {
-                    ProjectId = request.ProjectId,
-                    MarkingId = request.MarkingId,
-                    SetCode = request.SetCode,
-                    QuestionNumber = request.QuestionNumber,
-                    Option = request.Option,
-                };
-
-                if (WhichDatabase == "Local")
-                {
-                    _firstDbContext.AmbiguousQues.Add(ambiguousQuestion);
-                }
-                else
-                {
-                    _secondDbContext.AmbiguousQues.Add(ambiguousQuestion);
-                }
-            }
-
-            // Save changes to the selected database
-            if (WhichDatabase == "Local")
-            {
-                await _firstDbContext.SaveChangesAsync();
-            }
-            else
-            {
-                await _secondDbContext.SaveChangesAsync();
-            }
-
-            return Ok(new { message = "Marks allotted successfully" });
-        }*/
-
+        
         [AllowAnonymous]
         [HttpPost("allot-marks")]
         public async Task<IActionResult> AllotMarks(string WhichDatabase, [FromBody] List<AmbiguousQue> requests)
@@ -133,17 +59,18 @@ namespace SPA.Controllers
             {
                 return BadRequest(new { message = "Invalid request data" });
             }
-
+        
             // Determine the database context based on WhichDatabase parameter
             DbContext dbContext = WhichDatabase == "Local" ? (DbContext)_firstDbContext : (DbContext)_secondDbContext;
-
+        
             // Get the ProjectId from the first request (assuming all requests have the same ProjectId)
             var projectId = requests.First().ProjectId;
-
+            var courseName = requests.First().CourseName;
+        
             // Delete existing entries for the same ProjectId
-            var existingEntries = dbContext.Set<AmbiguousQue>().Where(q => q.ProjectId == projectId);
+            var existingEntries = dbContext.Set<AmbiguousQue>().Where(q => q.ProjectId == projectId && q.CourseName == courseName);
             dbContext.Set<AmbiguousQue>().RemoveRange(existingEntries);
-
+        
             // Process each request in the array
             foreach (var request in requests)
             {
@@ -156,15 +83,15 @@ namespace SPA.Controllers
                     SetCode = request.SetCode,
                     QuestionNumber = request.QuestionNumber,
                     Option = request.Option,
-                    Course = request.Course,
+                    CourseName = request.CourseName
                 };
-
+        
                 dbContext.Set<AmbiguousQue>().Add(ambiguousQuestion);
             }
-
+        
             // Save changes to the selected database
             await dbContext.SaveChangesAsync();
-
+        
             return Ok(new { message = "Marks allotted successfully" });
         }
 

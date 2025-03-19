@@ -137,6 +137,101 @@ namespace SPA.Controllers
             }
         }
 
+        [AllowAnonymous]
+        [HttpGet("AllCounts")]
+        public async Task<ActionResult<IEnumerable<object>>> GetCounts(int projectId, string whichDatabase)
+        {
+            if (whichDatabase == "Local")
+            {
+                try
+                {
+                    // Fetch counts from the database
+                    var registrationCount = await _firstDbContext.RegistrationDatas
+                                                                 .Where(p => p.ProjectId == projectId)
+                                                                 .CountAsync();
+                    var scannedCount = await _firstDbContext.OMRdatas
+                                                            .Where(p => p.ProjectId == projectId)
+                                                            .CountAsync();
+                    var absenteeCount = await _firstDbContext.Absentees
+                                                             .Where(p => p.ProjectID == projectId)
+                                                             .CountAsync();
+                    var imageCount = await _firstDbContext.OMRImages
+                                                         .Where(p => p.ProjectId == projectId)
+                                                         .CountAsync();
+                    var keyCount = await _firstDbContext.Keyss
+                                                    .Where(p => p.ProjectId == projectId)
+                                                    .CountAsync();
+
+                    // Create the result in the desired format
+                    var result = new
+                    {
+                        OMRImages = imageCount,
+                        ScannedData = scannedCount,
+                        AbsenteesUpload = absenteeCount,
+                        Registration = registrationCount,
+                        Keys = keyCount,
+                    };
+
+                    return Ok(result);  // Return the result
+                }
+                catch (Exception ex)
+                {
+                    // Handle exceptions if necessary
+                    return StatusCode(500, $"Internal server error: {ex.Message}");
+                }
+            }
+
+            else
+            {
+                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
+                }
+                try
+                {
+                    // Fetch counts from the database
+                    var registrationCount = await _secondDbContext.RegistrationDatas
+                                                                 .Where(p => p.ProjectId == projectId)
+                                                                 .CountAsync();
+                    var scannedCount = await _secondDbContext.OMRdatas
+                                                            .Where(p => p.ProjectId == projectId)
+                                                            .CountAsync();
+                    var absenteeCount = await _secondDbContext.Absentees
+                                                             .Where(p => p.ProjectID == projectId)
+                                                             .CountAsync();
+                    var imageCount = await _secondDbContext.OMRImages
+                                                         .Where(p => p.ProjectId == projectId)
+                                                         .CountAsync();
+
+                    var keyCount = await _secondDbContext.Keyss
+                                                      .Where(p => p.ProjectId == projectId)
+                                                      .CountAsync();
+
+                    // Create the result in the desired format
+                    var result = new
+                    {
+                        OMRImages = imageCount,
+                        ScannedData = scannedCount,
+                        AbsenteesUpload = absenteeCount,
+                        Registration = registrationCount,
+                        Keys = keyCount,
+                    };
+
+                    return Ok(result);  // Return the result
+                }
+                catch (Exception ex)
+                {
+                    // Handle exceptions if necessary
+                    return StatusCode(500, $"Internal server error: {ex.Message}");
+                }
+            }
+
+        }
+                // If the database is not "Local", return a bad request or appropriate response
+        
+
+
+
         // GET: api/Projects
         [HttpGet("YourProject")]
         public async Task<ActionResult<IEnumerable<object>>> GetProjectsWithUsers(string WhichDatabase, int userId)
@@ -176,7 +271,7 @@ namespace SPA.Controllers
                                                 .Select(u => $"{u.FirstName} {u.LastName}")
                                                 .ToList()
                         }
-                    ).ToList();
+                    ).OrderByDescending(p => p.ProjectId).ToList();
                     return Ok(projectswithusers);
                 }
                 else
@@ -214,7 +309,7 @@ namespace SPA.Controllers
                                                 .Select(u => $"{u.FirstName} {u.LastName}")
                                                 .ToList()
                         }
-                    ).ToList();
+                    ).OrderByDescending(p => p.ProjectId).ToList();
                     return Ok(projectswithusers);
                 }
 

@@ -55,8 +55,6 @@ namespace SPA.Controllers
 
                 return encrypteddata;
             }
-
-
         }
 
 

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json;
 namespace SPA.Models
@@ -14,7 +14,6 @@ namespace SPA.Models
         public string SetCode { get; set; }
         public int QuestionNumber { get; set; }
         public string? Option { get; set; }
-        [MaxLength(50)]
-        public string? Course { get; set; }
+        public string? CourseName { get; set; }
     }
 }
