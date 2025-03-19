@@ -122,11 +122,11 @@ namespace SPA.Controllers
             }
         }
 
-        private async Task<List<AmbiguousQue>> GetAmbiguousQuestionsAsync(int projectId, string WhichDatabase)
+        private async Task<List<AmbiguousQue>> GetAmbiguousQuestionsAsync(int projectId,string CourseName ,string WhichDatabase)
         {
             if (WhichDatabase == "Local")
             {
-                return await _firstDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId).ToListAsync();
+                return await _firstDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId && aq.CourseName == CourseName).ToListAsync();
 
             }
             else
@@ -135,7 +135,7 @@ namespace SPA.Controllers
                 {
                     return null;
                 }
-                return await _secondDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId).ToListAsync();
+                return await _secondDbContext.AmbiguousQues.Where(aq => aq.ProjectId == projectId && aq.CourseName == CourseName).ToListAsync();
             }
         }
 
@@ -304,12 +304,45 @@ namespace SPA.Controllers
                 throw new Exception($"No matching key found for course name '{responseConfig.CourseName}'.");
             }
 
-            string bookletSet = (string)omrDataObject["Booklet Series"];
+            string bookletSet = "";
+            if ((whichDatabase.Equals("Local", StringComparison.OrdinalIgnoreCase)))
+            {
+                var fieldconfig = await _firstDbContext.FieldConfigs.FirstOrDefaultAsync(fc => fc.ProjectId == projectId && fc.FieldName == "Booklet Series");
+                if (fieldconfig == null)
+                {
+                    bookletSet = "A";
+                }
+                else
+                {
+                    bookletSet = (string)omrDataObject["Booklet Series"];
+                }
+            }
+            else
+            {
+                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    bookletSet = "A";
+                }
+                else
+                {
+                    var fieldconfig = await _secondDbContext.FieldConfigs.FirstOrDefaultAsync(fc => fc.ProjectId == projectId && fc.FieldName == "Booklet Series");
+                    if (fieldconfig == null)
+                    {
+                        bookletSet = "A";
+                    }
+                    else
+                    {
+                        bookletSet = (string)omrDataObject["Booklet Series"];
+                    }
+                }
+            }
+            string courseName = responseConfig.CourseName;
+            
             var sets = JsonConvert.DeserializeObject<List<Sets>>(matchingKey.KeyData);
             var setValues = sets.Select(s => s.Set).ToList();
             string matchedSet = setValues.FirstOrDefault(s => s.Trim().Last().ToString().Equals(bookletSet, StringComparison.OrdinalIgnoreCase));
-            var ambiguousQuestions = await GetAmbiguousQuestionsAsync(projectId, whichDatabase);
-            var ambquestion = ambiguousQuestions.FirstOrDefault(u => u.SetCode.Equals(bookletSet));
+            var ambiguousQuestions = await GetAmbiguousQuestionsAsync(projectId,courseName, whichDatabase);
+            var ambquestion = ambiguousQuestions.Where(u => u.SetCode.Equals(bookletSet)).ToList();
 
             if (matchedSet == null)
             {
@@ -412,54 +445,54 @@ namespace SPA.Controllers
 
 
 
-      
 
-        private Results CalculateResults(
-    JObject answersObject,
-    List<Question> questions,
-    double marksCorrect,
-    double marksWrong,
-    bool negativeMarking,
-    AmbiguousQue ambiguousQue)
+
+        private Results CalculateResults(JObject answersObject, List<Question> questions, double marksCorrect, double marksWrong, bool negativeMarking, List<AmbiguousQue> ambiguousQueList)
         {
             int totalCorrectAnswers = 0;
             int totalWrongAnswers = 0;
+/*            int totalOptionE = 0;*/
             double totalScore = 0;
 
-            // If ambiguousQue is provided, retrieve its properties
-            bool hasAmbiguousQuestion = ambiguousQue != null;
-            int ambiguousQuestionNumber = hasAmbiguousQuestion ? ambiguousQue.QuestionNumber : -1;
-            int markingId = hasAmbiguousQuestion ? ambiguousQue.MarkingId : 0;
+            // Lists to store ambiguous question numbers and their corresponding marking IDs
+            List<int> ambiguousQuestionNumbers = new List<int>();
+            Dictionary<int, int> ambiguousMarkingIds = new Dictionary<int, int>();
+
+            // Populate the lists with data from ambiguousQueList
+            if (ambiguousQueList != null)
+            {
+                foreach (var ambiguousQue in ambiguousQueList)
+                {
+                    ambiguousQuestionNumbers.Add(ambiguousQue.QuestionNumber);
+                    ambiguousMarkingIds[ambiguousQue.QuestionNumber] = ambiguousQue.MarkingId;
+                }
+            }
 
             foreach (var question in questions)
             {
                 string answerKey = question.QuestionNo.ToString();
                 string userAnswer = answersObject[answerKey]?.ToString();
                 string correctAnswer = question.Answer;
+                var correctAnswerArray = correctAnswer.Split(',').Select(a=>a.Trim()).ToList();
 
-                // Check if the question matches the ambiguous question number, if provided
-                bool isAmbiguousQuestion = hasAmbiguousQuestion && question.QuestionNo == ambiguousQuestionNumber.ToString();
+                // Check if the question matches any of the ambiguous question numbers
+                bool isAmbiguousQuestion = ambiguousQuestionNumbers.Contains(Int32.Parse(question.QuestionNo));
 
                 // Apply MarkingId-based logic if it's an ambiguous question
                 if (isAmbiguousQuestion)
                 {
+                    int markingId = ambiguousMarkingIds[Int32.Parse(question.QuestionNo)];
                     switch (markingId)
                     {
                         case 1:
+                            totalCorrectAnswers++;
+                            continue;
+                        case 2:
+                            if (!string.IsNullOrEmpty(userAnswer))
                             {
                                 totalCorrectAnswers++;
-                                continue;
                             }
-
-                        case 2:
-                            {
-                                if (!string.IsNullOrEmpty(userAnswer))
-                                {
-                                    totalCorrectAnswers++;
-                                }
-                                continue;
-                            }
-
+                            continue;
                         case 3:
                             // Don’t award marks to any candidate
                             continue;
@@ -470,15 +503,25 @@ namespace SPA.Controllers
                     // Original scoring logic if no ambiguity or not an ambiguous question
                     if (!string.IsNullOrEmpty(userAnswer))
                     {
-                        if (userAnswer.Equals(correctAnswer, StringComparison.OrdinalIgnoreCase))
+                        if (correctAnswerArray.Contains(userAnswer,StringComparer.OrdinalIgnoreCase))
                         {
                             totalCorrectAnswers++;
                         }
+                        /*else if (userAnswer.Equals("e", StringComparison.OrdinalIgnoreCase))
+                        {
+                            totalOptionE++;
+                            // Skip this question
+                            continue;
+                        }*/
                         else
                         {
                             totalWrongAnswers++;
                         }
                     }
+                   /* else
+                    {
+                        totalWrongAnswers++;
+                    }*/
                 }
             }
 
@@ -493,9 +536,11 @@ namespace SPA.Controllers
             {
                 TotalCorrectAnswers = totalCorrectAnswers,
                 TotalWrongAnswers = totalWrongAnswers,
+/*                TotalOptionE = totalOptionE,*/
                 TotalScore = totalScore
             };
         }
+
 
 
 
@@ -509,6 +554,7 @@ namespace SPA.Controllers
         {
             public int TotalCorrectAnswers { get; set; }
             public int TotalWrongAnswers { get; set; }
+/*            public int TotalOptionE { get; set; }*/
             public double TotalScore { get; set; }
             public Dictionary<string, int> QuestionResults { get; set; } // Include question results
         }

@@ -139,9 +139,10 @@ namespace SPA.Controllers
 
             // Get the ProjectId from the first request (assuming all requests have the same ProjectId)
             var projectId = requests.First().ProjectId;
+            var courseName = requests.First().CourseName;
 
             // Delete existing entries for the same ProjectId
-            var existingEntries = dbContext.Set<AmbiguousQue>().Where(q => q.ProjectId == projectId);
+            var existingEntries = dbContext.Set<AmbiguousQue>().Where(q => q.ProjectId == projectId && q.CourseName == courseName);
             dbContext.Set<AmbiguousQue>().RemoveRange(existingEntries);
 
             // Process each request in the array
@@ -156,6 +157,7 @@ namespace SPA.Controllers
                     SetCode = request.SetCode,
                     QuestionNumber = request.QuestionNumber,
                     Option = request.Option,
+                    CourseName = request.CourseName
                 };
 
                 dbContext.Set<AmbiguousQue>().Add(ambiguousQuestion);
