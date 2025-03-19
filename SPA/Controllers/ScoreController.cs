@@ -315,7 +315,7 @@ namespace SPA.Controllers
         }
 
 
-        private async Task ProcessOmrData(JObject omrDataObject, ResponseConfig responseConfig, List<Keys> keys, List<object> resultsList, int projectId, string whichDatabase, int userID)
+        private async Task ProcessOmrData(JObject omrDataObject, ResponseConfig responseConfig, List<Keys> keys, List<object> resultsList, int projectId, string whichDatabase, int userID, string courseName)
         {
             var matchingKey = keys.FirstOrDefault(k => k.CourseName == responseConfig.CourseName);
             if (matchingKey == null)
@@ -354,7 +354,6 @@ namespace SPA.Controllers
                     }
                 }
             }
-            string courseName = responseConfig.CourseName;
             
             var sets = JsonConvert.DeserializeObject<List<Sets>>(matchingKey.KeyData);
             var setValues = sets.Select(s => s.Set).ToList();
@@ -470,7 +469,7 @@ namespace SPA.Controllers
        double marksCorrect,
        double marksWrong,
        bool negativeMarking,
-       List<AmbiguousQue> ambiguousQue)
+       List<AmbiguousQue> ambiguousQueList)
             {
         int totalCorrectAnswers = 0;
         int totalWrongAnswers = 0;
