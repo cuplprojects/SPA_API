@@ -13,6 +13,7 @@ using SPA.Models;
 using System.Security.Claims;
 using System.Drawing.Printing;
 using Microsoft.AspNetCore.Authorization;
+using System.Text;
 
 namespace SPA.Controllers
 {
@@ -91,42 +92,27 @@ namespace SPA.Controllers
         }
 
         [HttpGet("GetFlagsByCategoryChosingParameters")]
-        public async Task<ActionResult<IEnumerable<Flag>>> GetFlagsByCategoryFromWheretoWhere(string WhichDatabase, int ProjectID, string FieldName, int rangeStart, int rangeEnd, int userId)
+        public async Task<ActionResult<IEnumerable<object>>> GetFlagsByCategoryFromWheretoWhere(
+      string WhichDatabase, int ProjectID, string FieldName, int rangeStart, int rangeEnd, int userId)
         {
             await CleanupExpiredAssignments(WhichDatabase);
-            var flags = new List<Flag>();
-            IQueryable<Flag> query;
-            var existingAssignments = new List<FlagAssignment>();
 
-            // Determine the correct DbContext
+            List<Flag> flags;
+            List<FlagAssignment> existingAssignments;
+            List<OMRImage> images;
+
+            // Use the appropriate DbContext
             if (WhichDatabase == "Local")
             {
-                query = _FirstDbcontext.Flags.Where(f => !f.isCorrected && f.ProjectId == ProjectID);
+                flags = await FetchFlags(_FirstDbcontext, ProjectID, FieldName, rangeStart, rangeEnd, userId);
                 existingAssignments = await _FirstDbcontext.FlagAssignments
                     .Where(a => a.ProjectId == ProjectID && a.FieldName == FieldName &&
-                                ((a.StartFlagId >= rangeStart && a.StartFlagId <= rangeEnd) ||
-                                 (a.EndFlagId >= rangeStart && a.EndFlagId <= rangeEnd)))
+                        ((a.StartFlagId >= rangeStart && a.StartFlagId <= rangeEnd) ||
+                            (a.EndFlagId >= rangeStart && a.EndFlagId <= rangeEnd)))
                     .ToListAsync();
-
-                // Check for active assignment for the same userId
-                var userAssignment = await _FirstDbcontext.FlagAssignments
-                    .Where(a => a.ProjectId == ProjectID && a.UserId == userId && a.FieldName == FieldName &&
-                                a.ExpiresAt > DateTime.UtcNow.AddMinutes(330))
-                    .FirstOrDefaultAsync();
-
-                if (userAssignment != null)
-                {
-                    rangeStart = userAssignment.StartFlagId - 1;
-                    rangeEnd = userAssignment.EndFlagId;
-                    flags = await query
-                        .OrderBy(f => f.FlagId)
-                        .Skip(rangeStart)
-                        .Take(rangeEnd - rangeStart)
-                        .ToListAsync();
-
-
-                    return flags;
-                }
+                images = await _FirstDbcontext.OMRImages
+                    .Where(img => img.ProjectId == ProjectID)
+                    .ToListAsync();
             }
             else
             {
@@ -134,92 +120,99 @@ namespace SPA.Controllers
                 {
                     return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
                 }
-                query = _SecondDbcontext.Flags.Where(f => !f.isCorrected && f.ProjectId == ProjectID);
+
+                flags = await FetchFlags(_SecondDbcontext, ProjectID, FieldName, rangeStart, rangeEnd, userId);
                 existingAssignments = await _SecondDbcontext.FlagAssignments
                     .Where(a => a.ProjectId == ProjectID && a.FieldName == FieldName &&
-                                ((a.StartFlagId >= rangeStart && a.StartFlagId <= rangeEnd) ||
-                                 (a.EndFlagId >= rangeStart && a.EndFlagId <= rangeEnd)))
+                        ((a.StartFlagId >= rangeStart && a.StartFlagId <= rangeEnd) ||
+                            (a.EndFlagId >= rangeStart && a.EndFlagId <= rangeEnd)))
                     .ToListAsync();
-
-                // Check for active assignment for the same userId
-                var userAssignment = await _SecondDbcontext.FlagAssignments
-                    .Where(a => a.ProjectId == ProjectID && a.UserId == userId && a.FieldName == FieldName &&
-                                a.ExpiresAt > DateTime.UtcNow.AddMinutes(330))
-                    .FirstOrDefaultAsync();
-
-                if (userAssignment != null)
-                {
-                    rangeStart = userAssignment.StartFlagId - 1;
-                    rangeEnd = userAssignment.EndFlagId;
-                    flags = await query
-                        .OrderBy(f => f.FlagId)
-                        .Skip(rangeStart)
-                        .Take(rangeEnd - rangeStart)
-                        .ToListAsync();
-                    return flags;
-                }
+                images = await _SecondDbcontext.OMRImages
+                    .Where(img => img.ProjectId == ProjectID)
+                    .ToListAsync();
             }
 
-            if (FieldName != "all")
-            {
-                query = query.Where(f => f.Field == FieldName);
-            }
-
+            // Check for existing assignments
             if (existingAssignments.Any())
             {
                 return BadRequest("The specified range is already assigned to another user.");
             }
 
-            // Assign the range to the user
-            var newAssignment = new FlagAssignment
-            {
-                UserId = userId,
-                ProjectId = ProjectID,
-                FieldName = FieldName,
-                StartFlagId = rangeStart,
-                EndFlagId = rangeEnd,
-                AssignedAt = DateTime.UtcNow.AddMinutes(330),
-                ExpiresAt = DateTime.UtcNow.AddMinutes(332) // Example expiration time
-            };
-
-            if (WhichDatabase == "Local")
-            {
-                _FirstDbcontext.FlagAssignments.Add(newAssignment);
-                var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
-                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userID))
+            // Map images to flags
+            string hostUrl = $"{Request.Scheme}://{Request.Host}";
+            var result = flags.Select(flag => {
+                // Find the image where the extracted barcode matches the flag's barcode
+                var image = images.FirstOrDefault(img => img.OMRImagesName == flag.BarCode);
+                // Check if the image has been found and handle Base64 in FilePath
+                string imagePath = null;
+                if (image != null)
                 {
-                    _logger.LogEvent($"Flags Assigned to {userId}", "Flag", userID, WhichDatabase);
+                    // If FilePath is Base64 encoded, decode it to a valid file path
+                    if (image.FilePath.Contains("base64,"))
+                    {
+                        try
+                        {
+                            // Extract the Base64 string part after 'base64,'
+                            string base64Data = image.FilePath.Split("base64,")[1];
+
+                            // Decode the Base64 data back into a string (e.g., file path or decoded data)
+                            byte[] data = Convert.FromBase64String(base64Data);
+                            imagePath = Encoding.UTF8.GetString(data); // You might need to adjust this if it's not a string path
+                        }
+                        catch (FormatException ex)
+                        {
+                            // Handle any Base64 decoding errors
+                            imagePath = null;
+                            Console.WriteLine("Error decoding Base64 FilePath: " + ex.Message);
+                        }
+                    }
+                    else
+                    {
+                        // If no Base64, use the FilePath as is, with formatted slashes
+                        imagePath = image.FilePath;
+                        imagePath = imagePath.Replace("\\", "/");
+                        if (!imagePath.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
+                        {
+                            imagePath += ".jpg";
+                        }
+                    }
                 }
 
-                await _FirstDbcontext.SaveChangesAsync();
+                return new
+                {
+                    flag.FlagId,
+                    flag.Remarks,
+                    flag.FieldNameValue,
+                    flag.Field,
+                    flag.BarCode,
+                    flag.ProjectId,
+                    flag.isCorrected,
+                    flag.UpdatedByUserId,
+                    ImagePath = imagePath // Return the decoded or original image path
+                };
+            });
+
+
+            return Ok(result);
+        }
+
+        private async Task<List<Flag>> FetchFlags(DbContext dbContext, int projectId, string fieldName, int rangeStart, int rangeEnd, int userId)
+        {
+            var query = dbContext.Set<Flag>().Where(f => !f.isCorrected && f.ProjectId == projectId);
+
+            if (fieldName != "all")
+            {
+                query = query.Where(f => f.Field == fieldName);
             }
-            else
-            {
-                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
-                {
-                    return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
-                }
-                _SecondDbcontext.FlagAssignments.Add(newAssignment);
-                var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
-                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userID))
-                {
-                    //_logger.LogEvent($"Deleted BookletPDFData in PaperID: {paperID}", "BookletPdfData", userId);
-                    _logger.LogEvent($"Flags Assigned to {userId}", "Flag", userID, WhichDatabase);
-                }
-                await _SecondDbcontext.SaveChangesAsync();
-            }
 
-            rangeStart = rangeStart - 1;
+            // Adjust range start to 0-based index
+            rangeStart = Math.Max(rangeStart - 1, 0);
 
-            // Fetch the flags within the specified range
-            int numberOfEntries = rangeEnd - rangeStart;
-            flags = await query
+            return await query
                 .OrderBy(f => f.FlagId)
                 .Skip(rangeStart)
-                .Take(numberOfEntries)
+                .Take(rangeEnd - rangeStart)
                 .ToListAsync();
-
-            return flags;
         }
 
         [HttpDelete("DeleteAssignmentbyUserId")]

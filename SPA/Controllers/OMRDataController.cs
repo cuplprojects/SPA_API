@@ -327,109 +327,7 @@ namespace SPA.Controllers
             }
         }
 
-        /*[HttpPost("uploadcsv")]
-        public async Task<IActionResult> UploadData(Cyphertext cyphertext, string WhichDatabase, int ProjectId)
-        {
-            // Decrypt the cyphertext
-            string decryptedJson = _securityService.Decrypt(cyphertext.cyphertextt);
-
-            // Deserialize the decrypted JSON into the List<Dictionary<string, string>> object
-            List<Dictionary<string, string>> parsedData = JsonConvert.DeserializeObject<List<Dictionary<string, string>>>(decryptedJson);
-
-            // Validate the list of dictionaries
-            if (parsedData == null || parsedData.Count == 0)
-            {
-                return BadRequest("No data received");
-            }
-
-            try
-            {
-                if (WhichDatabase == "Local")
-                {
-                    foreach (var row in parsedData)
-                    {
-                        var omrData = new OMRdata
-                        {
-                            OmrDataId = GetNextScannedId(WhichDatabase),
-                            ProjectId = ProjectId,
-                            OmrData = JsonConvert.SerializeObject(row.Where(kv => kv.Key != "Barcode").ToDictionary(kv => kv.Key, kv => kv.Value)),
-                            BarCode = row.ContainsKey("Barcode") ? row["Barcode"] : null,
-                            Status = 1
-                        };
-                        try
-                        {
-                            _firstDbContext.OMRdatas.Add(omrData);
-                            await _firstDbContext.SaveChangesAsync();
-                        }
-                        catch (DbUpdateException ex) when (ex.InnerException is MySqlConnector.MySqlException mysqlEx && mysqlEx.Number == 1062)
-                        {
-                            // Handle duplicate entry errors (MySQL error code 1062)
-                            Console.WriteLine($"Duplicate entry found for OMRDataId: {omrData.OmrDataId}. Skipping this entry.");
-                            continue;
-                        }
-                        catch (Exception ex)
-                        {
-                            // Log the unexpected exception and continue with the next row
-                            Console.WriteLine($"An unexpected error occurred: {ex.Message}");
-                            continue;
-                        }
-                    }
-                    var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
-                    if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
-                    {
-                        _logger.LogEvent($"Scanned Data Added for {ProjectId}", "OMR data", userId, WhichDatabase);
-                    }
-
-                }
-                else
-                {
-                    if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
-                    {
-                        return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
-                    }
-                    foreach (var row in parsedData)
-                    {
-                        var omrData = new OMRdata
-                        {
-                            OmrDataId = GetNextScannedId(WhichDatabase),
-                            ProjectId = ProjectId,
-                            OmrData = JsonConvert.SerializeObject(row.Where(kv => kv.Key != "Barcode").ToDictionary(kv => kv.Key, kv => kv.Value)),
-                            BarCode = row.ContainsKey("Barcode") ? row["Barcode"] : null,
-                            Status = 1
-                        };
-                        try
-                        {
-                            _secondDbContext.OMRdatas.Add(omrData);
-                            await _secondDbContext.SaveChangesAsync();
-                        }
-                        catch (DbUpdateException ex) when (ex.InnerException is MySqlConnector.MySqlException mysqlEx && mysqlEx.Number == 1062)
-                        {
-                            // Handle duplicate entry errors (MySQL error code 1062)
-                            Console.WriteLine($"Duplicate entry found for OMRDataId: {omrData.OmrDataId}. Skipping this entry.");
-                            continue;
-                        }
-                        catch (Exception ex)
-                        {
-                            // Log the unexpected exception and continue with the next row
-                            Console.WriteLine($"An unexpected error occurred: {ex.Message}");
-                            continue;
-                        }
-                    }
-                    var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
-                    if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
-                    {
-                        _logger.LogEvent($"Scanned Data Added for {ProjectId}", "OMR data", userId, WhichDatabase);
-                    }
-
-                }
-
-                return Ok("Data uploaded successfully");
-            }
-            catch (DbUpdateException ex)
-            {
-                return StatusCode(500, $"An error occurred: {ex.InnerException?.Message ?? ex.Message}");
-            }
-        }*/
+    
 
         [HttpPost("uploadcsv")]
         public async Task<IActionResult> UploadData(Cyphertext cyphertext, string WhichDatabase, int ProjectId)
@@ -537,154 +435,117 @@ namespace SPA.Controllers
                 return BadRequest("No files uploaded.");
             }
 
-            // Determine the appropriate database context based on the 'WhichDatabase' parameter
             if (WhichDatabase == "Local")
             {
-                // Access the local database (FirstDbContext)
+                // Handle the "Local" database context
                 var project = await _firstDbContext.Projects.FirstOrDefaultAsync(p => p.ProjectId == ProjectId);
                 if (project == null)
                 {
                     return BadRequest("Project not found in the local database.");
                 }
 
-                // Define the project directory path
-                string projectName = project.ProjectName;
-                string projectDirectory = Path.Combine("wwwroot", "projects", projectName);
+                string projectDirectory = Path.Combine("wwwroot","projects",(project.ProjectId).ToString());
+                string PD = Path.Combine("projects", (project.ProjectId).ToString());
                 EnsureDirectoryExists(projectDirectory);
 
-                // Initialize a list to track failed files
                 List<string> failedFiles = new List<string>();
+                List<string> uploadedFiles = new List<string>();
 
-                // Process each file in the batch
+                var existingFileNames = await _firstDbContext.OMRImages
+                    .Where(img => img.ProjectId == ProjectId)
+                    .Select(img => img.OMRImagesName)
+                    .ToListAsync();
+
                 foreach (var file in files)
                 {
-                    // Generate a unique file name: ProjectId_imagename.jpg
-                    string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(file.FileName);
-                    string uniqueFileName = $"{ProjectId}_{fileNameWithoutExtension}.jpg";  // Append .jpg extension
+                    string uniqueFileName = file.FileName;
+                    string FileName = Path.GetFileNameWithoutExtension(file.FileName);
+
+                    if (existingFileNames.Contains(uniqueFileName))
+                    {
+                        failedFiles.Add(file.FileName + $": Duplicate entry for with value '{uniqueFileName}'");
+                        continue;
+                    }
 
                     string filePath = Path.Combine(projectDirectory, uniqueFileName);
+                    string filePath2 = Path.Combine(PD, uniqueFileName);
 
                     try
                     {
-                        // Save the file to the disk
                         await SaveFile(file, filePath);
 
-                        // Add the file record to the database
                         var newFile = new OMRImage
                         {
-                            OMRImagesName = uniqueFileName,  // Use the unique file name
-                            FilePath = filePath,
+                            OMRImagesName = FileName,
+                            FilePath = filePath2,
                             ProjectId = ProjectId
                         };
 
-                        // Handle unique constraint violation at the database level
-                        try
-                        {
-                            _firstDbContext.OMRImages.Add(newFile);
-                            await _firstDbContext.SaveChangesAsync();
-                        }
-                        catch (MySqlException mysqlEx)
-                        {
-                            // Handle MySQL-specific exceptions
-                            if (mysqlEx.Number == 1062) // MySQL Duplicate Entry Error Code
-                            {
-                                // Log the specific duplicate entry error
-                                failedFiles.Add(file.FileName + ": Duplicate entry '" + uniqueFileName + "' for key 'omrimages.OMRImagesName_UNIQUE' | Error Code: " + mysqlEx.Number);
-                            }
-                            else
-                            {
-                                // Log other MySQL-related errors
-                                failedFiles.Add(file.FileName + ": MySQL Error: " + mysqlEx.Message + " | Error Code: " + mysqlEx.Number);
-                            }
-                        }
-                        catch (DbUpdateException ex)
-                        {
-                            // Log the main error message
-                            string mainErrorMessage = "EF Core Error: " + ex.Message;
+                        _firstDbContext.OMRImages.Add(newFile);
+                        await _firstDbContext.SaveChangesAsync();
 
-                            // Check for the inner exception and log it if available
-                            string innerExceptionMessage = ex.InnerException != null ? ex.InnerException.Message : "No inner exception available.";
-
-                            // Log both the main exception message and the inner exception
-                            failedFiles.Add(file.FileName + ": " + innerExceptionMessage);
-                        }
-                        catch (Exception ex)
-                        {
-                            // Handle all other exceptions
-                            failedFiles.Add(file.FileName + ": General Error: " + ex.Message + " | Error Code: Unknown");
-                        }
+                        uploadedFiles.Add(file.FileName);
                     }
                     catch (Exception ex)
                     {
-                        // If the file fails to upload, add it to the failed list
                         failedFiles.Add(file.FileName + ": " + ex.Message);
                     }
                 }
 
-                // Return response with success or failure details
-                if (failedFiles.Count > 0)
-                {
-                    return BadRequest(new { message = "Some files failed to upload.", failedFiles });
-                }
-
-                return Ok(new { message = "Batch upload successful." });
+                return GetUploadResponse("Local", uploadedFiles, failedFiles);
             }
             else if (WhichDatabase == "Online")
             {
-                // Similar logic for online database (SecondDbContext)
+                // Handle the "Online" database context
                 var project = await _secondDbContext.Projects.FirstOrDefaultAsync(p => p.ProjectId == ProjectId);
                 if (project == null)
                 {
                     return BadRequest("Project not found in the online database.");
                 }
 
-                // Define the project directory path
-                string projectName = project.ProjectName;
-                string projectDirectory = Path.Combine("wwwroot", "projects", projectName);
+                string projectDirectory = Path.Combine("wwwroot","projects",(project.ProjectId).ToString());
+                string PD = Path.Combine("projects", (project.ProjectId).ToString());
                 EnsureDirectoryExists(projectDirectory);
 
                 List<string> failedFiles = new List<string>();
+                List<string> uploadedFiles = new List<string>();
+
+                var existingFileNames = await _secondDbContext.OMRImages
+                    .Where(img => img.ProjectId == ProjectId)
+                    .Select(img => img.OMRImagesName)
+                    .ToListAsync();
 
                 foreach (var file in files)
                 {
-                    // Generate a unique file name: ProjectId_imagename.jpg
                     string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(file.FileName);
-                    string uniqueFileName = $"{ProjectId}_{fileNameWithoutExtension}.jpg";  // Append .jpg extension
+                    string uniqueFileName = $"{fileNameWithoutExtension}";
+
+                    if (existingFileNames.Contains(uniqueFileName))
+                    {
+                        failedFiles.Add(file.FileName + $": Duplicate entry with value '{uniqueFileName}'");
+                        continue;
+                    }
 
                     string filePath = Path.Combine(projectDirectory, uniqueFileName);
+                    string filePath2 = Path.Combine(PD, uniqueFileName);
 
                     try
                     {
-                        // Save the file to the disk
                         await SaveFile(file, filePath);
 
-                        // Add the file record to the database
+
+
                         var newFile = new OMRImage
                         {
-                            OMRImagesName = uniqueFileName,  // Use the unique file name
-                            FilePath = filePath,
+                            OMRImagesName = uniqueFileName,
+                            FilePath = filePath2,
                             ProjectId = ProjectId
                         };
 
-                        // Handle unique constraint violation at the database level
-                        try
-                        {
-                            _secondDbContext.OMRImages.Add(newFile);
-                            await _secondDbContext.SaveChangesAsync();
-                        }
-                        catch (DbUpdateException ex)
-                        {
-                            if (ex.InnerException is MySqlException mysqlEx && mysqlEx.Number == 1062) // MySQL error code for duplicate entry
-                            {
-                                // Handle duplicate entry error
-                                failedFiles.Add(file.FileName + ": Duplicate file name for this project.");
-                            }
-                            else
-                            {
-                                // Handle other exceptions
-                                failedFiles.Add(file.FileName + ": " + ex.Message);
-                            }
-                        }
+                        _secondDbContext.OMRImages.Add(newFile);
+                        await _secondDbContext.SaveChangesAsync();
+
+                        uploadedFiles.Add(file.FileName);
                     }
                     catch (Exception ex)
                     {
@@ -692,17 +553,31 @@ namespace SPA.Controllers
                     }
                 }
 
-                if (failedFiles.Count > 0)
-                {
-                    return BadRequest(new { message = "Some files failed to upload.", failedFiles });
-                }
-
-                return Ok(new { message = "Batch upload successful." });
+                return GetUploadResponse("Online", uploadedFiles, failedFiles);
             }
             else
             {
                 return BadRequest("Invalid database selection.");
             }
+        }
+
+        private IActionResult GetUploadResponse(string contextName, List<string> uploadedFiles, List<string> failedFiles)
+        {
+            if (failedFiles.Count > 0)
+            {
+                return BadRequest(new
+                {
+                    message = $"Some files failed to upload in the {contextName} database.",
+                    failedFiles,
+                    uploadedFiles
+                });
+            }
+
+            return Ok(new
+            {
+                message = $"Batch upload successful in the {contextName} database.",
+                uploadedFiles
+            });
         }
 
         private async Task SaveFile(IFormFile file, string filePath)
@@ -730,118 +605,7 @@ namespace SPA.Controllers
         }
 
 
-        /*        [HttpPost("upload-request")]
-                public async Task<IActionResult> UploadRequest(int ProjectId, Cyphertext cyphertext, string WhichDatabase)
-                {
-
-                    // Decrypt the cyphertext
-                    string decryptedJson = _securityService.Decrypt(cyphertext.cyphertextt);
-
-                    // Deserialize the decrypted JSON into the UploadRequestDto object
-                    var request = JsonConvert.DeserializeObject<UploadRequestDto>(decryptedJson);
-                    Console.WriteLine(request.ToString);
-
-                    // Validate the decrypted request
-                    if (request == null || string.IsNullOrEmpty(request.FilePath) || string.IsNullOrEmpty(request.OMRImagesName))
-                    {
-                        return BadRequest("Invalid request data.");
-                    }
-                    if (WhichDatabase == "Local")
-                    {
-                        lock (_dbContextLock)
-                        {
-                            var existingFile = _firstDbContext.OMRImages.FirstOrDefault(f => f.OMRImagesName == request.OMRImagesName && f.ProjectId == ProjectId);
-
-                            if (existingFile != null)
-                            {
-                                if (request.Replace)
-                                {
-                                    // Replace existing file
-                                    existingFile.FilePath = request.FilePath;
-                                    _firstDbContext.OMRImages.Update(existingFile);
-                                    var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
-                                    if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userID))
-                                    {
-                                        _logger.LogEvent($"Omr Image Replaced for {existingFile.OMRImagesName} Project : {existingFile.ProjectId}", "OMR Images", userID, WhichDatabase);
-                                    }
-                                }
-                                else
-                                {
-                                    return Conflict("File with the same name already exists.");
-                                }
-                            }
-                            else
-                            {
-                                var newFile = new OMRImage
-                                {
-                                    OMRImagesName = request.OMRImagesName,
-                                    FilePath = request.FilePath,
-                                    ProjectId = ProjectId
-                                };
-                                _firstDbContext.OMRImages.Add(newFile);
-
-                            }
-
-                            _firstDbContext.SaveChanges();
-                            var userIdClaime = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
-                            if (userIdClaime != null && int.TryParse(userIdClaime.Value, out int userId))
-                            {
-                                _logger.LogEvent($"Omr Image Added for Project : {ProjectId}", "OMR Images", userId, WhichDatabase);
-                            }
-                        }
-
-                    }
-                    else
-                    {
-                        if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
-                        {
-                            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
-                        }
-                        lock (_dbContextLock)
-                        {
-                            var existingFile = _secondDbContext.OMRImages.FirstOrDefault(f => f.OMRImagesName == request.OMRImagesName && f.ProjectId == ProjectId);
-
-                            if (existingFile != null)
-                            {
-                                if (request.Replace)
-                                {
-                                    // Replace existing file
-                                    existingFile.FilePath = request.FilePath;
-                                    _secondDbContext.OMRImages.Update(existingFile);
-                                    var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
-                                    if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userID))
-                                    {
-                                        _logger.LogEvent($"Omr Image Replaced for {existingFile.OMRImagesName} Project : {existingFile.ProjectId}", "OMR Images", userID, WhichDatabase);
-                                    }
-                                }
-                                else
-                                {
-                                    return Conflict("File with the same name already exists.");
-                                }
-                            }
-                            else
-                            {
-                                var newFile = new OMRImage
-                                {
-                                    OMRImagesName = request.OMRImagesName,
-                                    FilePath = request.FilePath,
-                                    ProjectId = ProjectId
-                                };
-                                _secondDbContext.OMRImages.Add(newFile);
-                            }
-
-                            _secondDbContext.SaveChanges();
-                            var userIdClaime = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
-                            if (userIdClaime != null && int.TryParse(userIdClaime.Value, out int userId))
-                            {
-                                _logger.LogEvent($"Omr Image Added for Project : {ProjectId}", "OMR Images", userId, WhichDatabase);
-                            }
-                        }
-                    }
-
-                    return Ok(new { message = "File uploaded successfully." });
-                }
-        */
+      
         // modification required
         [HttpGet("omrdata/{projectId}/last-image-name")]
         public async Task<ActionResult<string>> GetLastOmrImageName(int projectId)
