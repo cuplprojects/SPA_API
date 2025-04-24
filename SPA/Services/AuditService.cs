@@ -35,10 +35,10 @@ namespace SPA.Services
                 var fieldConfigs = await _fieldConfigService.GetFieldConfigsAsync(WhichDatabase, ProjectId);
                 var registrationDataList = await _registrationDataService.GetRegistrationDataListAsync(WhichDatabase, ProjectId);
                 var absenteelist = await _omrDataService.GetAbsenteeListAsync(WhichDatabase, ProjectId);
+                var existingFlags = WhichDatabase == "Local"
+                            ? _firstDbContext.Flags.Where(f => f.ProjectId == ProjectId && f.Remarks.Contains("IsBlank") && f.isCorrected==false).ToList()
+                            : _secondDbContext.Flags.Where(f => f.ProjectId == ProjectId && f.Remarks.Contains("IsBlank") && f.isCorrected == false).ToList();
 
-                //await _fieldConfigService.CheckRollNumbersInRangeAsync(omrDataList, fieldConfigs);
-
-                // Perform audit checks for each field in the fieldConfigs
                 foreach (var config in fieldConfigs)
                 {
                     await _fieldConfigService.CheckFieldValuesinRangeAsync(omrDataList, fieldConfigs, config.FieldName, IsWithinRange, IsPreferredResponse, ProjectId, WhichDatabase);
@@ -208,31 +208,7 @@ namespace SPA.Services
 
         }
 
-        /*public async Task<List<string>> GetKeysAsync(string whichDatabase, int ProjectId)
-        {
-            IQueryable<RegistrationData> query = whichDatabase == "Local" ? _firstDbContext.RegistrationDatas : _secondDbContext.RegistrationDatas;
-
-            // Fetch the first registration data record
-            var registrationData = await query.FirstOrDefaultAsync(u => u.ProjectId == ProjectId);
-
-            if (registrationData == null)
-            {
-                throw new Exception("No registration data found.");
-            }
-
-            // Parse the JSON to extract keys
-            var jsonData = registrationData.RegistrationsData;
-            var keys = new List<string>();
-            using (JsonDocument doc = JsonDocument.Parse(jsonData))
-            {
-                foreach (JsonProperty element in doc.RootElement.EnumerateObject())
-                {
-                    keys.Add(element.Name);
-                }
-            }
-
-            return keys;
-        }*/
+     
 
         public async Task<List<string>> GetCommonKeysAsync(string whichDatabase, int projectId, int omrDataId)
         {

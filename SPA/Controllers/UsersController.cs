@@ -313,6 +313,9 @@ namespace SPA.Controllers
                     <p style=""color: #F00;"">
                         Please change the password immediately after login.
                     </p>
+<div style=""display:flex;align-items:center;justify-content:center;"">
+                <a href=""http://spa.edua2z.in"" style=""text-decoration: none; background-color: #007bff; color: #ffffff; padding: 10px 20px; border-radius: 4px; display: inline-block; margin-top: 20px;"">Login</a>
+            </div>
                 </div>";
 
             var result = new EmailService(_secondDbContext, _configuration).SendEmail(user.Email, "Welcome to CUPL!", emailBody);

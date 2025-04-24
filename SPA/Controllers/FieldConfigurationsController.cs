@@ -189,63 +189,29 @@ namespace SPA.Controllers
         }
 
 
-        /*[HttpPost]
-        public async Task<ActionResult<FieldConfig>> PostFieldConfiguration(FieldConfig fieldConfiguration, string WhichDatabase)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest("Wrong input");
-            }
-
-            if (WhichDatabase == "Local")
-            {
-                _firstDbContext.FieldConfigs.Add(fieldConfiguration);
-
-            }
-            else
-            {
-                _secondDbContext.FieldConfigs.Add(fieldConfiguration);
-            }
-
-            try
-            {
-                if (WhichDatabase == "Local")
-                {
-                    await _firstDbContext.SaveChangesAsync();
-                }
-                else
-                {
-                    await _secondDbContext.SaveChangesAsync();
-                }
-
-
-            }
-            catch (DbUpdateException)
-            {
-                if (FieldConfigurationExists(fieldConfiguration.FieldConfigurationId, WhichDatabase))
-                {
-                    return Conflict();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-            string FieldConfigJson = JsonConvert.SerializeObject(fieldConfiguration);
-            string jsonUpdate = FieldConfigJson.Replace("\\\"", "'").Trim();
-            _changeLogger.LogForDBSync("Update", "FieldConfigs", jsonUpdate, WhichDatabase);
-
-            return CreatedAtAction("GetFieldConfiguration", new { id = fieldConfiguration.FieldConfigurationId }, fieldConfiguration);
-        }*/
-
+   
         [HttpPost]
         public async Task<ActionResult<FieldConfig>> PostFieldConfiguration(Cyphertext cyphertext, string WhichDatabase)
         {
             // Decrypt the cyphertext
             string decryptedJson = _securityService.Decrypt(cyphertext.cyphertextt);
-
+             
             // Deserialize the decrypted JSON into the FieldConfig object
             var fieldConfiguration = JsonConvert.DeserializeObject<FieldConfig>(decryptedJson);
+            var existing = WhichDatabase == "Local" ? _firstDbContext.FieldConfigs.FirstOrDefault(f => f.ProjectId == fieldConfiguration.ProjectId && f.FieldName == fieldConfiguration.FieldName) :
+                _secondDbContext.FieldConfigs.FirstOrDefault(f => f.ProjectId == fieldConfiguration.ProjectId && f.FieldName == fieldConfiguration.FieldName);
+            if (existing != null)
+            {
+                if (WhichDatabase == "Local")
+                {
+                    _firstDbContext.Remove(existing);
+                }
+                else
+                {
+                    _secondDbContext.Remove(existing);
+                }
+            }
+
             fieldConfiguration.FieldConfigurationId = GetNextFieldConfigId();
 
             if (!ModelState.IsValid)
