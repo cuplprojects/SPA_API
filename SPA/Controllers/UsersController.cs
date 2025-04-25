@@ -323,12 +323,40 @@ namespace SPA.Controllers
             return CreatedAtAction("GetUser", new { id = user.UserId }, response);
         }
 
+        [AllowAnonymous]
         [HttpPost("WithoutEncryption")]
         public async Task<ActionResult<UserResponse>> PostUserwithoutEncryption(User user, string WhichDatabase)
         {
             
             int newUserId = GetNextUserId(WhichDatabase);
             user.UserId = newUserId;
+            if(user.TenantId == 0)
+            {
+              var newOrg = new OrganizationPlan
+                {
+                    OrganizationName = user.FirstName + " " + user.LastName,
+                    PlanName = "Free",
+                    StartedDate = DateTime.Now,
+                    EndDate = DateTime.Now.AddYears(1)
+                };
+                Console.WriteLine("New Organization Plan Created: " + newOrg.OrganizationName);
+                if (WhichDatabase == "Local")
+                {
+                    _firstDbcontext.OrganizationPlans.Add(newOrg);
+                    await _firstDbcontext.SaveChangesAsync();
+                    Console.WriteLine("New TenantId: " + newOrg.TenantId);
+                }
+                else
+                {
+                    if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                    {
+                        return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
+                    }
+                    _secondDbContext.OrganizationPlans.Add(newOrg);
+                    await _secondDbContext.SaveChangesAsync();
+                }
+                user.TenantId = newOrg.TenantId;
+            }
 
             if (WhichDatabase == "Local")
             {

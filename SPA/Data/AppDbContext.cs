@@ -40,6 +40,7 @@ namespace SPA.Data
         public DbSet<RegistrationData> RegistrationDatas { get; set; }
         public DbSet<Project> Projects { get; set; }
         public DbSet<Permission> Permissions { get; set; }
+        public DbSet<OrganizationPlan> OrganizationPlans { get; set; }
         public DbSet<OMRdata> OMRdatas { get; set; }
         public DbSet<CorrectedOMRData> CorrectedOMRDatas { get; set; }
         public DbSet<Keys> Keyss { get; set; }
@@ -94,6 +95,7 @@ namespace SPA.Data
         public DbSet<RegistrationData> RegistrationDatas { get; set; }
         public DbSet<Project> Projects { get; set; }
         public DbSet<Permission> Permissions { get; set; }
+        public DbSet<OrganizationPlan> OrganizationPlans { get; set; }
         public DbSet<OMRdata> OMRdatas { get; set; }
         public DbSet<CorrectedOMRData> CorrectedOMRDatas { get; set; }
         public DbSet<Keys> Keyss { get; set; }
