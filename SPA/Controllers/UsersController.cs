@@ -443,6 +443,53 @@ namespace SPA.Controllers
 
             return CreatedAtAction("GetUser", new { id = user.UserId }, response);
         }
+
+        [HttpPost("upload/{userId}")]
+        public async Task<IActionResult> UploadImage(int userId)
+        {
+            try
+            {
+                if (UserExists(userId, "first"))
+                {
+                    var file = Request.Form.Files[0];
+                    if (file.Length > 0)
+                    {
+                        var fileExtension = Path.GetExtension(file.FileName);
+                        var customFileName = $"{userId}_profilepic{fileExtension}";
+                        var filePath = Path.Combine("wwwroot/Image", customFileName);
+                        using (var stream = new FileStream(filePath, FileMode.Create))
+                        {
+                            await file.CopyToAsync(stream);
+                        }
+
+                        var user = await _firstDbcontext.Users.FirstOrDefaultAsync(u => u.UserId == userId);
+                        if (user != null)
+                        {
+                            user.ProfilePicturePath = $"image/{customFileName}";
+                            await _firstDbcontext.SaveChangesAsync();
+                        }
+
+                        return Ok(new { message = "Image uploaded successfully", filePath });
+                    }
+                    else
+                    {
+                        return BadRequest("No file uploaded.");
+                    }
+                }
+                else
+                {
+                    return BadRequest("User not found.");
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+
+
+
         // DELETE: api/Users/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id, string WhichDatabase)
