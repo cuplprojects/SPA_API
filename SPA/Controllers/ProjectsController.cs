@@ -136,6 +136,30 @@ namespace SPA.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, $"Error retrieving users for project {projectId}: {ex.Message}");
             }
         }
+        [AllowAnonymous]
+        [HttpGet("GetFromToProject")]
+
+        public async Task<ActionResult> GetProject()
+        {
+            var from =  new List<Project>();
+            var To = new List<Project>();
+         var project = await _firstDbContext.Projects.ToListAsync();
+            foreach (var item in project)
+            {
+                var fieldConfig = await _firstDbContext.FieldConfigs.Where(fc=>fc.ProjectId == item.ProjectId).CountAsync();
+                var responseconfig = await _firstDbContext.ResponseConfigs.Where(fc => fc.ProjectId == item.ProjectId).CountAsync();
+                var imageconfig = await _firstDbContext.ImageConfigs.Where(fc => fc.ProjectId == item.ProjectId).CountAsync();
+                if (fieldConfig > 0 && responseconfig> 0 && responseconfig>0)
+                {
+                    from.Add(item);
+                }
+                else
+                {
+                To.Add(item);
+                }
+            }
+            return Ok(new {FromProject = from , ToProject = To});
+        }
 
         [AllowAnonymous]
         [HttpGet("AllCounts")]
