@@ -18,7 +18,6 @@ namespace SPA.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
     public class FlagsController : ControllerBase
     {
         private readonly FirstDbContext _firstDbContext;
@@ -145,6 +144,82 @@ namespace SPA.Controllers
                 }
             }
         }
+
+        [HttpGet("FlagExist")]
+        public async Task<ActionResult<object>> isFlagExists(int id, string WhichDatabase)
+        {
+            if (WhichDatabase == "Local")
+            {
+                var flag = await _firstDbContext.Flags.AnyAsync(u => u.ProjectId == id);
+
+                return Ok(new { status = flag });
+            }
+            else
+            {
+                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
+                }
+                var flag = await _secondDbContext.Flags.AnyAsync(u => u.ProjectId == id);
+                return Ok(new { status = flag });
+            }
+        }
+
+        [HttpDelete("DeleteforNewAudit")]
+        public async Task<ActionResult> DeleteForNewAudit(int id, string WhichDatabase)
+        {
+            if (WhichDatabase == "Local")
+            {
+                var fieldConfig = await _firstDbContext.FieldConfigs.FindAsync(id);
+                if(fieldConfig==null)
+                {
+                    return NotFound();
+                }
+                int projectID = fieldConfig.ProjectId;
+                string fieldName = fieldConfig.FieldName;
+                var flags = await _firstDbContext.Flags
+                    .Where(f => f.ProjectId == projectID && f.Field == fieldName && (f.Remarks == $"{fieldName} not a correct option" || f.Remarks == $"{fieldName} out of range" || f.Remarks == $"{fieldName} is Blank") && f.isCorrected == false)
+                    .ToListAsync();
+                try
+                {
+                    _firstDbContext.Flags.RemoveRange(flags);               
+                    await _firstDbContext.SaveChangesAsync();
+                    return Ok("Flags Deleted");
+                }
+                catch(Exception error)
+                {
+                    return BadRequest(error.Message);
+                }
+            }
+            else
+            {
+                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
+                }
+                var fieldConfig = await _secondDbContext.FieldConfigs.FindAsync(id);
+                if (fieldConfig == null)
+                {
+                    return NotFound();
+                }
+                int projectID = fieldConfig.ProjectId;
+                string fieldName = fieldConfig.FieldName;
+                var flags = await _firstDbContext.Flags
+                    .Where(f => f.ProjectId == projectID && f.Field == fieldName && (f.Remarks == $"{fieldName} not a correct option" || f.Remarks == $"{fieldName} out of range" || f.Remarks == $"{fieldName} is Blank") && f.isCorrected == false)
+                    .ToListAsync();
+                try
+                {
+                    _secondDbContext.Flags.RemoveRange(flags);
+                    await _secondDbContext.SaveChangesAsync();
+                    return Ok("Flags Deleted");
+                }
+                catch (Exception error)
+                {
+                    return BadRequest(error.Message);
+                }
+            }
+        }
+
 
         [HttpGet("ByProject/{ProjectId}")]
         public async Task<ActionResult<List<Flag>>> GetFlagbyProject(int ProjectId, string WhichDatabase)
