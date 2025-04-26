@@ -136,7 +136,7 @@ namespace SPA.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, $"Error retrieving users for project {projectId}: {ex.Message}");
             }
         }
-        [AllowAnonymous]
+
         [HttpGet("GetFromToProject")]
 
         public async Task<ActionResult> GetProject()
