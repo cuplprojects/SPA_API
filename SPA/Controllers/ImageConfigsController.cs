@@ -84,53 +84,7 @@ namespace SPA.Controllers
             }
         }
 
-        // PUT: api/ImageConfigs/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        /*[HttpPut("{id}")]
-        public async Task<IActionResult> PutImageConfig(int id, ImageConfig imageConfig, string WhichDatabase)
-        {
-            if (WhichDatabase == "Local")
-            {
-                if (id != imageConfig.Id)
-                {
-                    return BadRequest();
-                }
-                _firstDbcontext.Entry(imageConfig).State = EntityState.Modified;
-            }
-            else
-            {
-                if (id != imageConfig.Id)
-                {
-                    return BadRequest();
-                }
-                _secondDbContext.Entry(imageConfig).State = EntityState.Modified;
-            }
-            try
-            {
-                if (WhichDatabase == "Local")
-                {
-                    await _firstDbcontext.SaveChangesAsync();
-                }
-                else
-                {
-                    await _secondDbContext.SaveChangesAsync();
-                }
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!ImageConfigExists(id, WhichDatabase))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-            string imageConfigJson = JsonConvert.SerializeObject(imageConfig);
-            _changeLogger.LogForDBSync("Update", "ImageConfigs", imageConfigJson, WhichDatabase);
-            return NoContent();
-        }*/
+      
 
         [HttpPut("{id}")]
         public async Task<IActionResult> PutImageConfig(int id, Cyphertext cyphertext, string WhichDatabase)
@@ -194,54 +148,6 @@ namespace SPA.Controllers
 
             return NoContent();
         }
-
-
-        // POST: api/ImageConfigs
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        /*[HttpPost]
-        public async Task<ActionResult<ImageConfig>> PostImageConfig(ImageConfig imageConfig, string WhichDatabase)
-        {
-            int newImgConId = GetNextImgConId(WhichDatabase);
-            imageConfig.Id = newImgConId;
-
-            if (WhichDatabase == "Local")
-            {
-                _firstDbcontext.ImageConfigs.Add(imageConfig);
-            }
-            else
-            {
-                _secondDbContext.ImageConfigs.Add(imageConfig);
-            }
-
-            try
-            {
-                if (WhichDatabase == "Local")
-                {
-                    await _firstDbcontext.SaveChangesAsync();
-                }
-                else
-                {
-                    await _secondDbContext.SaveChangesAsync();
-                }
-            }
-            catch (DbUpdateException)
-            {
-                if (ImageConfigExists(imageConfig.Id, WhichDatabase))
-                {
-                    return Conflict();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            string imageConfigJson = JsonConvert.SerializeObject(imageConfig);
-            _changeLogger.LogForDBSync("Insert", "ImageConfigs", imageConfigJson, WhichDatabase);
-
-            return CreatedAtAction("GetImageConfig", new { id = imageConfig.Id }, imageConfig);
-        }
-*/
 
         [HttpPost]
         public async Task<ActionResult<ImageConfig>> PostImageConfig(Cyphertext cyphertext, string WhichDatabase)
@@ -346,29 +252,7 @@ namespace SPA.Controllers
             return NoContent();
         }
 
-        // GET: api/ImageConfigs/ByProjectId/5
-        /*[HttpGet("ByProjectId/{projectId}")]
-        public async Task<ActionResult<IEnumerable<ImageConfig>>> GetImageConfigsByProjectId(int projectId, string WhichDatabase)
-        {
-            List<ImageConfig> imageConfigs = new List<ImageConfig>();
-
-            if (WhichDatabase == "Local")
-            {
-                imageConfigs = await _firstDbcontext.ImageConfigs.Where(config => config.ProjectId == projectId).ToListAsync();
-            }
-            else
-            {
-                imageConfigs = await _secondDbContext.ImageConfigs.Where(config => config.ProjectId == projectId).ToListAsync();
-            }
-
-            if (imageConfigs == null || imageConfigs.Count == 0)
-            {
-                return NotFound();
-            }
-
-            return imageConfigs;
-        }*/
-
+    
         [HttpGet("ByProjectId/{projectId}")]
         public async Task<ActionResult<string>> GetImageConfigsByProjectId(int projectId, string WhichDatabase)
         {

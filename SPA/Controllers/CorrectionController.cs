@@ -110,6 +110,7 @@ namespace SPA.Controllers
                         ((a.StartFlagId >= rangeStart && a.StartFlagId <= rangeEnd) ||
                             (a.EndFlagId >= rangeStart && a.EndFlagId <= rangeEnd)))
                     .ToListAsync();
+
                 images = await _FirstDbcontext.OMRImages
                     .Where(img => img.ProjectId == ProjectID)
                     .ToListAsync();
@@ -204,6 +205,7 @@ namespace SPA.Controllers
             {
                 query = query.Where(f => f.Field == fieldName);
             }
+
 
             // Adjust range start to 0-based index
             rangeStart = Math.Max(rangeStart - 1, 0);

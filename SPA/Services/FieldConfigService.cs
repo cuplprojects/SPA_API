@@ -78,7 +78,6 @@ namespace SPA.Services
                                 {
                                     var fieldValue = fieldElement.GetString();
 
-                                    // Skip values containing '*'
                                     if (fieldValue.Contains('*'))
                                     {
                                         continue;
@@ -1323,7 +1322,6 @@ List<string> absenteeRollNumbers)
             if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
             {
                 UserID = userId;
-                //_logger.LogEvent($"Deleted BookletPDFData in PaperID: {paperID}", "BookletPdfData", userId);
             }
 
             var flag = new Flag

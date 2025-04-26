@@ -36,12 +36,7 @@ namespace SPA.Controllers
             _logger = logger;
         }
 
-        // GET: api/Flags
-        /*[HttpGet]
-        public async Task<ActionResult<IEnumerable<Flag>>> GetFlags()
-        {
-            return await _firstDbContext.Flags.Where(f => !f.isCorrected).ToListAsync();
-        }*/
+      
 
         // GET: api/Flags/5
         [HttpGet("{id}")]

@@ -69,7 +69,9 @@ namespace SPA.Controllers
                                                 Email = user.Email,
                                                 RoleId = role.RoleId,
                                                 RoleName = role.RoleName,
-                                                IsActive = user.IsActive
+                                                IsActive = user.IsActive,
+                                                ProfilePicturePath = user.ProfilePicturePath,
+                                                TenantId = user.TenantId
                                             }).ToListAsync();
                 }
                 else
@@ -91,7 +93,9 @@ namespace SPA.Controllers
                                                 Email = user.Email,
                                                 RoleId = role.RoleId,
                                                 RoleName = role.RoleName,
-                                                IsActive = user.IsActive
+                                                IsActive = user.IsActive,
+                                                ProfilePicturePath = user.ProfilePicturePath,
+                                                TenantId = user.TenantId
                                             }).ToListAsync();
                 }
 
@@ -313,6 +317,9 @@ namespace SPA.Controllers
                     <p style=""color: #F00;"">
                         Please change the password immediately after login.
                     </p>
+<div style=""display:flex;align-items:center;justify-content:center;"">
+                <a href=""http://spa.edua2z.in"" style=""text-decoration: none; background-color: #007bff; color: #ffffff; padding: 10px 20px; border-radius: 4px; display: inline-block; margin-top: 20px;"">Login</a>
+            </div>
                 </div>";
 
             var result = new EmailService(_secondDbContext, _configuration).SendEmail(user.Email, "Welcome to CUPL!", emailBody);
@@ -320,12 +327,40 @@ namespace SPA.Controllers
             return CreatedAtAction("GetUser", new { id = user.UserId }, response);
         }
 
+        [AllowAnonymous]
         [HttpPost("WithoutEncryption")]
         public async Task<ActionResult<UserResponse>> PostUserwithoutEncryption(User user, string WhichDatabase)
         {
             
             int newUserId = GetNextUserId(WhichDatabase);
             user.UserId = newUserId;
+            if(user.TenantId == 0)
+            {
+              var newOrg = new OrganizationPlan
+                {
+                    OrganizationName = user.FirstName + " " + user.LastName,
+                    PlanName = "Free",
+                    StartedDate = DateTime.Now,
+                    EndDate = DateTime.Now.AddYears(1)
+                };
+                Console.WriteLine("New Organization Plan Created: " + newOrg.OrganizationName);
+                if (WhichDatabase == "Local")
+                {
+                    _firstDbcontext.OrganizationPlans.Add(newOrg);
+                    await _firstDbcontext.SaveChangesAsync();
+                    Console.WriteLine("New TenantId: " + newOrg.TenantId);
+                }
+                else
+                {
+                    if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                    {
+                        return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
+                    }
+                    _secondDbContext.OrganizationPlans.Add(newOrg);
+                    await _secondDbContext.SaveChangesAsync();
+                }
+                user.TenantId = newOrg.TenantId;
+            }
 
             if (WhichDatabase == "Local")
             {
@@ -443,6 +478,53 @@ namespace SPA.Controllers
 
             return CreatedAtAction("GetUser", new { id = user.UserId }, response);
         }
+
+        [HttpPost("upload/{userId}")]
+        public async Task<IActionResult> UploadImage(int userId)
+        {
+            try
+            {
+                if (UserExists(userId, "first"))
+                {
+                    var file = Request.Form.Files[0];
+                    if (file.Length > 0)
+                    {
+                        var fileExtension = Path.GetExtension(file.FileName);
+                        var customFileName = $"{userId}_profilepic{fileExtension}";
+                        var filePath = Path.Combine("wwwroot/Image", customFileName);
+                        using (var stream = new FileStream(filePath, FileMode.Create))
+                        {
+                            await file.CopyToAsync(stream);
+                        }
+
+                        var user = await _firstDbcontext.Users.FirstOrDefaultAsync(u => u.UserId == userId);
+                        if (user != null)
+                        {
+                            user.ProfilePicturePath = $"image/{customFileName}";
+                            await _firstDbcontext.SaveChangesAsync();
+                        }
+
+                        return Ok(new { message = "Image uploaded successfully", filePath });
+                    }
+                    else
+                    {
+                        return BadRequest("No file uploaded.");
+                    }
+                }
+                else
+                {
+                    return BadRequest("User not found.");
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+
+
+
         // DELETE: api/Users/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id, string WhichDatabase)
