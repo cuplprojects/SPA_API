@@ -11,6 +11,10 @@
         public string RoleName { get; set; }
         public bool IsActive { get; set; }
         public int TenantId { get; set; }
+        public string PlanName { get; set; }
+        public string OrganizationName { get; set; }
+        public DateTime StartedDate { get; set; }
+        public DateTime EndDate { get; set; }
         public string? ProfilePicturePath { get; set; }
     }
 }
