@@ -1,6 +1,7 @@
 ﻿using SPA.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using SPA.Models;
 
 namespace SPA.Services
 {
@@ -32,6 +33,22 @@ namespace SPA.Services
                 return await _SecondDbContext.OMRdatas.Where(i => i.ProjectId == ProjectId).ToListAsync();
             }
 
+        }
+
+        public async Task<List<ExtractedOMRData>> GetExtractedOmrDataListAsync(string WhichDatabase, int ProjectId)
+        {
+            if (WhichDatabase == "Local")
+            {
+                return await _FirstDbcontext.ExtractedOMRDatas.Where(i => i.ProjectId == ProjectId).ToListAsync();
+            }
+            else
+            {
+                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    throw new Exception("Connection Unavailable");
+                }
+                return await _SecondDbContext.ExtractedOMRDatas.Where(i => i.ProjectId == ProjectId).ToListAsync();
+            }
         }
 
         public async Task<List<CorrectedOMRData>> GetCorrectedOmrDataListAsync(string WhichDatabase, int ProjectId)

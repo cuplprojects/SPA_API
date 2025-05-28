@@ -60,6 +60,8 @@ namespace SPA.Controllers
                     usersWithRoles = await (from user in _firstDbcontext.Users
                                             join role in _firstDbcontext.Roles
                                             on user.RoleId equals role.RoleId
+                                            join org in _firstDbcontext.OrganizationPlans
+                                            on user.TenantId equals org.TenantId
                                             select new UserDto
                                             {
                                                 UserId = user.UserId,
@@ -71,7 +73,11 @@ namespace SPA.Controllers
                                                 RoleName = role.RoleName,
                                                 IsActive = user.IsActive,
                                                 ProfilePicturePath = user.ProfilePicturePath,
-                                                TenantId = user.TenantId
+                                                TenantId = user.TenantId,
+                                                OrganizationName = org.OrganizationName,
+                                                PlanName = org.PlanName,
+                                                StartedDate = org.StartedDate,
+                                                EndDate = org.EndDate
                                             }).ToListAsync();
                 }
                 else
@@ -109,31 +115,86 @@ namespace SPA.Controllers
 
         // GET: api/Users/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<User>> GetUser(int id, string WhichDatabase)
+        public async Task<ActionResult<UserDto>> GetUser(int id, string WhichDatabase)
         {
-            if (WhichDatabase == "Local")
+            try
             {
-                var user = await _firstDbcontext.Users.FindAsync(id);
-                if (user == null)
+                UserDto userWithDetails;
+
+                if (WhichDatabase == "Local")
                 {
-                    return NotFound();
+                    userWithDetails = await (from user in _firstDbcontext.Users
+                                             where user.UserId == id
+                                             join role in _firstDbcontext.Roles
+                                             on user.RoleId equals role.RoleId
+                                             join org in _firstDbcontext.OrganizationPlans
+                                             on user.TenantId equals org.TenantId into orgGroup
+                                             from organization in orgGroup.DefaultIfEmpty() // left join
+                                             select new UserDto
+                                             {
+                                                 UserId = user.UserId,
+                                                 FirstName = user.FirstName,
+                                                 LastName = user.LastName,
+                                                 FullName = user.FirstName + " " + user.LastName,
+                                                 Email = user.Email,
+                                                 RoleId = role.RoleId,
+                                                 RoleName = role.RoleName,
+                                                 IsActive = user.IsActive,
+                                                 ProfilePicturePath = user.ProfilePicturePath,
+                                                 TenantId = user.TenantId,
+                                                 OrganizationName = organization.OrganizationName,
+                                                 PlanName = organization.PlanName,
+                                                 StartedDate = organization.StartedDate,
+                                                 EndDate = organization.EndDate
+                                             }).FirstOrDefaultAsync();
+
+                    if (userWithDetails == null)
+                        return NotFound();
                 }
-                return user;
+                else
+                {
+                    if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                    {
+                        return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
+                    }
+
+                    userWithDetails = await (from user in _secondDbContext.Users
+                                             where user.UserId == id
+                                             join role in _secondDbContext.Roles
+                                             on user.RoleId equals role.RoleId
+                                             join org in _secondDbContext.OrganizationPlans
+                                             on user.TenantId equals org.TenantId into orgGroup
+                                             from organization in orgGroup.DefaultIfEmpty()
+                                             select new UserDto
+                                             {
+                                                 UserId = user.UserId,
+                                                 FirstName = user.FirstName,
+                                                 LastName = user.LastName,
+                                                 FullName = user.FirstName + " " + user.LastName,
+                                                 Email = user.Email,
+                                                 RoleId = role.RoleId,
+                                                 RoleName = role.RoleName,
+                                                 IsActive = user.IsActive,
+                                                 ProfilePicturePath = user.ProfilePicturePath,
+                                                 TenantId = user.TenantId,
+                                                 OrganizationName = organization.OrganizationName,
+                                                 PlanName = organization.PlanName,
+                                                 StartedDate = organization.StartedDate,
+                                                 EndDate = organization.EndDate
+                                             }).FirstOrDefaultAsync();
+
+                    if (userWithDetails == null)
+                        return NotFound();
+                }
+
+                return Ok(userWithDetails);
             }
-            else
+            catch (Exception ex)
             {
-                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
-                {
-                    return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
-                }
-                var user = await _secondDbContext.Users.FindAsync(id);
-                if (user == null)
-                {
-                    return NotFound();
-                }
-                return user;
+                return StatusCode(500, $"Internal server error: {ex.Message}");
             }
         }
+
 
         // PUT: api/Users/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754

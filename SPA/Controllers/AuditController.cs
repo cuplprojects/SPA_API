@@ -136,9 +136,28 @@ namespace SPA.Controllers
                 _logger.LogError(ex.ToString(), ex.Message, "Audit", WhichDatabase);
                 return BadRequest(ex.Message);
             }
+        }
 
+        [AllowAnonymous]
+        [HttpGet("MismatchedWithExtracted")]
+        public async Task<IActionResult> AuditMismatchedWithExtracted(string WhichDatabase, int ProjectId)
+        {
+            try
+            {
+                await _auditService.PerformMismatchedWithExtractedAsync(WhichDatabase, ProjectId);
+                var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    _logger.LogEvent($"Mismatched with Extracted OMR Audit Ran", "Audit", userId, WhichDatabase);
+                }
+                return Ok("Audit ran Successfully");
 
-
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString(), ex.Message, "Audit", WhichDatabase);
+                return BadRequest(ex.Message);
+            }
         }
 
     }

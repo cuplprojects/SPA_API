@@ -42,6 +42,7 @@ namespace SPA.Data
         public DbSet<Permission> Permissions { get; set; }
         public DbSet<OrganizationPlan> OrganizationPlans { get; set; }
         public DbSet<OMRdata> OMRdatas { get; set; }
+        public DbSet<ExtractedOMRData> ExtractedOMRDatas { get; set; }
         public DbSet<CorrectedOMRData> CorrectedOMRDatas { get; set; }
         public DbSet<Keys> Keyss { get; set; }
         public DbSet<ImageConfig> ImageConfigs { get; set; }
@@ -97,6 +98,7 @@ namespace SPA.Data
         public DbSet<Permission> Permissions { get; set; }
         public DbSet<OrganizationPlan> OrganizationPlans { get; set; }
         public DbSet<OMRdata> OMRdatas { get; set; }
+        public DbSet<ExtractedOMRData> ExtractedOMRDatas { get; set; }
         public DbSet<CorrectedOMRData> CorrectedOMRDatas { get; set; }
         public DbSet<Keys> Keyss { get; set; }
         public DbSet<ImageConfig> ImageConfigs { get; set; }

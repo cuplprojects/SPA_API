@@ -9,6 +9,7 @@ using System.Linq;
 using System.Drawing.Printing;
 using System.Security.Claims;
 using Org.BouncyCastle.Bcpg;
+using SPA.Models;
 
 namespace SPA.Services
 {
@@ -1116,7 +1117,81 @@ List<string> absenteeRollNumbers)
             Console.WriteLine("All flags saved to the database.");
         }
 
+        public async Task CheckForMismatchedWithExtractedAsync(List<OMRdata> omrDataList, List<ExtractedOMRData> extractedOMRDatas, List<FieldConfig> fieldConfigs, int ProjectId, string WhichDatabase )
+        {
+            foreach (var corrected in omrDataList)
+            {
+                var extracted = extractedOMRDatas.FirstOrDefault(e => e.BarCode == corrected.BarCode);
+                if (extracted == null)
+                {
+                    Console.WriteLine($"No extracted data found for BarCode: {corrected.BarCode}");
+                    continue;
+                }
 
+                var correctedJson = JsonConvert.DeserializeObject<Dictionary<string, object>>(corrected.OmrData);
+                var extractedJson = JsonConvert.DeserializeObject<Dictionary<string, object>>(extracted.ExtractedOmrData);
+
+                foreach (var key in correctedJson.Keys)
+                {
+                    if (!extractedJson.ContainsKey(key))
+                    {
+                        Console.WriteLine($"Missing key '{key}' in extracted data for BarCode: {corrected.BarCode}");
+                        AddFlag(corrected.BarCode,
+                                                      key,
+                                                     $"Missing {key} in extracted data",
+                                                       "Missing in field",
+                                                       ProjectId,
+                                                       WhichDatabase);
+                        continue;
+                    }
+
+                    if (key == "Answers")
+                    {
+                        var correctedAnswers = JsonConvert.DeserializeObject<Dictionary<string, string>>(correctedJson[key].ToString());
+                        var extractedAnswers = JsonConvert.DeserializeObject<Dictionary<string, string>>(extractedJson[key].ToString());
+
+                        foreach (var q in correctedAnswers.Keys)
+                        {
+                            var correctedAns = correctedAnswers[q];
+                            var extractedAns = extractedAnswers.ContainsKey(q) ? extractedAnswers[q] : null;
+
+                            if (correctedAns != extractedAns)
+                            {
+                                Console.WriteLine($"Mismatch at BarCode: {corrected.BarCode}, Question: {q}, Corrected: '{correctedAns}', Extracted: '{extractedAns}'");
+                                AddFlag(
+                                                                                    corrected.BarCode,
+                                                                                    key,
+                                                                                    extractedAns ?? "null",
+                                                                                     $"Mismatch in Question: {q}",
+                                                                                     ProjectId,
+                                                                                     WhichDatabase
+                                                                                 );
+
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var correctedValue = correctedJson[key]?.ToString();
+                        var extractedValue = extractedJson[key]?.ToString();
+
+                        if (correctedValue != extractedValue)
+                        {
+                            Console.WriteLine($"Mismatch in field '{key}' at BarCode: {corrected.BarCode}, Corrected: '{correctedValue}', Extracted: '{extractedValue}'");
+                            AddFlag(
+                                                      corrected.BarCode,
+                                                      key,
+                                                      extractedValue ?? "null",
+                                                       $"Mismatch in {key}",
+                                                       ProjectId,
+                                                       WhichDatabase
+                                                   );
+
+                        }
+                    }
+                }
+            }
+        }
         public async Task CheckForMissingRollNumbersAsync(
     List<OMRdata> omrDataList,
     List<CorrectedOMRData> correctedOMRDatas,

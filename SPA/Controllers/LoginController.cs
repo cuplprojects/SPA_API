@@ -19,7 +19,7 @@ using SPA.Data;
 using SPA;
 
 
-namespace KeyGen.Controller
+namespace SPA.Controller
 {
     [Route("api/[controller]")]
     [ApiController]
