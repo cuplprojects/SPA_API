@@ -197,6 +197,126 @@ namespace SPA.Controllers
             return NoContent();
         }
 
+        [AllowAnonymous]
+        [HttpGet("SectionName")]
+        public async Task<ActionResult> GetSectionNames(int projectId, string courseName, string WhichDatabase)
+        {
+            List<string> sectionNames = new();
+            List<string> finalSectionNames = new();
+            List<FieldConfig> fields;
+            List<string> bookletlist;
+
+            if (WhichDatabase == "Local")
+            {
+                sectionNames = await _firstDbContext.ResponseConfigs
+                    .Where(rc => rc.ProjectId == projectId && rc.CourseName == courseName)
+                    .SelectMany(rc => JsonConvert.DeserializeObject<List<Section>>(rc.SectionsJson))
+                    .Select(s => s.Name)
+                    .ToListAsync();
+
+                fields = await _firstDbContext.FieldConfigs
+                    .Where(fc => fc.ProjectId == projectId)
+                    .ToListAsync();
+
+                bookletlist = await _firstDbContext.FieldConfigs
+                    .Where(bc => bc.ProjectId == projectId && bc.FieldName == "Booklet Series")
+                    .Select(bc => bc.FieldAttributesJson)
+                    .ToListAsync();
+            }
+            else
+            {
+                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
+                }
+
+                sectionNames = await _secondDbContext.ResponseConfigs
+                    .Where(rc => rc.ProjectId == projectId && rc.CourseName == courseName)
+                    .SelectMany(rc => JsonConvert.DeserializeObject<List<Section>>(rc.SectionsJson))
+                    .Select(s => s.Name)
+                    .ToListAsync();
+
+                fields = await _secondDbContext.FieldConfigs
+                    .Where(fc => fc.ProjectId == projectId)
+                    .ToListAsync();
+
+                bookletlist = await _secondDbContext.FieldConfigs
+                    .Where(bc => bc.ProjectId == projectId && bc.FieldName == "Booklet Series")
+                    .Select(bc => bc.FieldAttributesJson)
+                    .ToListAsync();
+            }
+
+            var distinctSectionNames = sectionNames.Distinct().ToList();
+
+            foreach (var section in distinctSectionNames)
+            {
+                var matchedField = fields.FirstOrDefault(f => f.FieldName == section);
+                if (matchedField != null && !string.IsNullOrEmpty(matchedField.FieldAttributesJson))
+                {
+                    try
+                    {
+                        var attributes = JsonConvert.DeserializeObject<List<FieldAttribute>>(matchedField.FieldAttributesJson);
+                        foreach (var attr in attributes)
+                        {
+                            var responses = attr.Responses?.Split(',') ?? Array.Empty<string>();
+                            foreach (var resp in responses)
+                            {
+                                finalSectionNames.Add($"{section}:{resp.Trim()}");
+                            }
+                        }
+                    }
+                    catch (JsonException ex)
+                    {
+                        Console.WriteLine($"Error parsing FieldAttributesJson for section {section}: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    // If no matching FieldConfig, just add section name
+                    finalSectionNames.Add(section);
+                }
+            }
+
+            // Extract fieldnames from Booklet Series only
+            List<string> fieldnames = new();
+
+            foreach (var json in bookletlist)
+            {
+                if (!string.IsNullOrEmpty(json))
+                {
+                    try
+                    {
+                        var attributes = JsonConvert.DeserializeObject<List<FieldAttribute>>(json);
+                        foreach (var attr in attributes)
+                        {
+                            var responses = attr.Responses?.Split(',') ?? Array.Empty<string>();
+                            foreach (var resp in responses)
+                            {
+                                fieldnames.Add(resp.Trim());
+                            }
+                        }
+                    }
+                    catch (JsonException ex)
+                    {
+                        Console.WriteLine($"Error parsing Booklet Series FieldAttributesJson: {ex.Message}");
+                    }
+                }
+            }
+
+            if (!fieldnames.Any())
+            {
+                fieldnames.Add("A");
+            }
+
+            return Ok(new
+            {
+                sectionNames = finalSectionNames,
+                fieldnames = fieldnames.Distinct()
+            });
+        }
+
+
+
 
         // POST: api/ResponseConfigs
         [HttpPost]
@@ -212,7 +332,26 @@ namespace SPA.Controllers
             var sections = sectionsToken?.ToObject<List<Section>>();
             var ProjectID = tempResponseConfig["projectId"]?.ToObject<int>();
             var CourseName = tempResponseConfig["courseName"]?.ToString();
+            bool configExists = false;
+            if (WhichDatabase == "Local")
+            {
+                configExists = _firstDbContext.ResponseConfigs
+                    .Any(rc => rc.ProjectId == ProjectID && rc.CourseName == CourseName);
+            }
+            else
+            {
+                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
+                }
+                configExists = _secondDbContext.ResponseConfigs
+                    .Any(rc => rc.ProjectId == ProjectID && rc.CourseName == CourseName);
+            }
 
+            if (configExists)
+            {
+                return Conflict($"A response configuration for Project ID '{ProjectID}' and Course Name '{CourseName}' already exists.");
+            }
             var responseConfig = new ResponseConfig
             {
                 ResponseId = newResponseConfigID,
