@@ -208,11 +208,15 @@ namespace SPA.Controllers
 
             if (WhichDatabase == "Local")
             {
-                sectionNames = await _firstDbContext.ResponseConfigs
-                    .Where(rc => rc.ProjectId == projectId && rc.CourseName == courseName)
+                var responseConfigs = await _firstDbContext.ResponseConfigs
+     .Where(rc => rc.ProjectId == projectId && rc.CourseName == courseName)
+     .ToListAsync();
+
+                sectionNames = responseConfigs
                     .SelectMany(rc => JsonConvert.DeserializeObject<List<Section>>(rc.SectionsJson))
                     .Select(s => s.Name)
-                    .ToListAsync();
+                    .ToList();
+
 
                 fields = await _firstDbContext.FieldConfigs
                     .Where(fc => fc.ProjectId == projectId)
@@ -230,11 +234,15 @@ namespace SPA.Controllers
                     return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
                 }
 
-                sectionNames = await _secondDbContext.ResponseConfigs
-                    .Where(rc => rc.ProjectId == projectId && rc.CourseName == courseName)
+                var responseConfigs = await _firstDbContext.ResponseConfigs
+      .Where(rc => rc.ProjectId == projectId && rc.CourseName == courseName)
+      .ToListAsync();
+
+                sectionNames = responseConfigs
                     .SelectMany(rc => JsonConvert.DeserializeObject<List<Section>>(rc.SectionsJson))
                     .Select(s => s.Name)
-                    .ToListAsync();
+                    .ToList();
+
 
                 fields = await _secondDbContext.FieldConfigs
                     .Where(fc => fc.ProjectId == projectId)
@@ -314,6 +322,7 @@ namespace SPA.Controllers
                 fieldnames = fieldnames.Distinct()
             });
         }
+
 
 
 
