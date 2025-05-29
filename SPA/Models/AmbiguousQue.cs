@@ -15,5 +15,6 @@ namespace SPA.Models
         public int QuestionNumber { get; set; }
         public string? Option { get; set; }
         public string? CourseName { get; set; }
+        public string? Section { get; set; }
     }
 }
