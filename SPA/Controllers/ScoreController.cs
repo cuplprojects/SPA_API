@@ -892,8 +892,6 @@ namespace SPA.Controllers
                 // ✅ OPTIMIZATION 1: Use single database context reference
 
                 Console.WriteLine("Fetching data from the database...");
-
-                // ✅ OPTIMIZATION 2: Parallel data fetching
                 var omrDataList = await _firstDbContext.OMRdatas.Where(od => od.ProjectId == projectId && od.Status == 1).Select(u => u.OmrData).ToListAsync();
                 var correctedOmrList = await _firstDbContext.CorrectedOMRDatas.Where(co => co.ProjectId == projectId).Select(u => u.CorrectedOmrData).ToListAsync();
                 var keys = await _firstDbContext.Keyss.Where(k => k.ProjectId == projectId && k.CourseName == courseName).ToListAsync();

@@ -88,6 +88,13 @@ namespace SPA.Controllers
                 return BadRequest("No file uploaded.");
             }
 
+            var key = await _firstDbContext.Keyss
+                .FirstOrDefaultAsync(k => k.ProjectId == ProjectId && k.CourseName == courseName);
+            if (key != null)
+            {
+               _firstDbContext.Keyss.RemoveRange(key);
+            }
+
             var subjectRangesJson = Request.Form["subjectRanges"];
             Console.WriteLine($"Received subjectRanges JSON: {subjectRangesJson}");
             if (string.IsNullOrEmpty(subjectRangesJson))

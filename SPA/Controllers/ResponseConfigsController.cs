@@ -201,20 +201,19 @@ namespace SPA.Controllers
         [HttpGet("SectionName")]
         public async Task<ActionResult> GetSectionNames(int projectId, string courseName, string WhichDatabase)
         {
-            List<string> sectionNames = new();
-            List<string> finalSectionNames = new();
+            List<Section> sectionNames = new();
+            List<object> finalSectionNames = new();
             List<FieldConfig> fields;
             List<string> bookletlist;
 
             if (WhichDatabase == "Local")
             {
                 var responseConfigs = await _firstDbContext.ResponseConfigs
-     .Where(rc => rc.ProjectId == projectId && rc.CourseName == courseName)
-     .ToListAsync();
+               .Where(rc => rc.ProjectId == projectId && rc.CourseName == courseName)
+               .ToListAsync();
 
                 sectionNames = responseConfigs
                     .SelectMany(rc => JsonConvert.DeserializeObject<List<Section>>(rc.SectionsJson))
-                    .Select(s => s.Name)
                     .ToList();
 
 
@@ -240,7 +239,6 @@ namespace SPA.Controllers
 
                 sectionNames = responseConfigs
                     .SelectMany(rc => JsonConvert.DeserializeObject<List<Section>>(rc.SectionsJson))
-                    .Select(s => s.Name)
                     .ToList();
 
 
@@ -258,7 +256,7 @@ namespace SPA.Controllers
 
             foreach (var section in distinctSectionNames)
             {
-                var matchedField = fields.FirstOrDefault(f => f.FieldName == section);
+                var matchedField = fields.FirstOrDefault(f => f.FieldName == section.Name);
                 if (matchedField != null && !string.IsNullOrEmpty(matchedField.FieldAttributesJson))
                 {
                     try
@@ -269,7 +267,12 @@ namespace SPA.Controllers
                             var responses = attr.Responses?.Split(',') ?? Array.Empty<string>();
                             foreach (var resp in responses)
                             {
-                                finalSectionNames.Add($"{section}:{resp.Trim()}");
+                                finalSectionNames.Add(new
+                                {
+                                    Name = $"{ section.Name}:{ resp.Trim()}",
+                                    StartQuestion = section.StartQuestion,
+                                    EndQuestion = section.EndQuestion
+                                });
                             }
                         }
                     }
@@ -281,7 +284,12 @@ namespace SPA.Controllers
                 else
                 {
                     // If no matching FieldConfig, just add section name
-                    finalSectionNames.Add(section);
+                    finalSectionNames.Add(new
+                    {
+                        Name = section.Name,
+                        StartQuestion = section.StartQuestion,
+                        EndQuestion = section.EndQuestion
+                    });
                 }
             }
 
