@@ -15,6 +15,7 @@ using SPA.Services;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using System.Runtime.InteropServices;
+using System.Threading;
 namespace SPA.Controllers
 {
     [Route("api/[controller]")]
@@ -561,7 +562,7 @@ namespace SPA.Controllers
           }
   */
 
-     
+
         /*  [HttpGet("omrdata/{projectId}/details")]
           public async Task<ActionResult<object>> GetOMRDetails(int projectId, string courseName, string WhichDatabase)
           {
@@ -889,7 +890,7 @@ namespace SPA.Controllers
             try
             {
                 // ✅ OPTIMIZATION 1: Use single database context reference
-                
+
                 Console.WriteLine("Fetching data from the database...");
 
                 // ✅ OPTIMIZATION 2: Parallel data fetching
@@ -900,7 +901,7 @@ namespace SPA.Controllers
                 var existingScoreRollNumbers = await _firstDbContext.Scores.Where(s => s.ProjectId == projectId).Select(s => s.RollNumber).ToListAsync();
                 var allRegistrationData = await _firstDbContext.RegistrationDatas.Where(rd => rd.ProjectId == projectId).ToListAsync();
 
-               
+
 
                 if (!omrDataList.Any() || !correctedOmrList.Any() || !keys.Any() || !responseConfigs.Any())
                 {
@@ -1064,7 +1065,12 @@ namespace SPA.Controllers
                 // ✅ OPTIMIZATION 12: Pre-parse candidate answers once
                 var candidateAnswers = JsonConvert.DeserializeObject<Dictionary<string, string>>(omrDataObject["Answers"].ToString());
 
+                var ambiguousQuestions = _firstDbContext.AmbiguousQues
+    .Where(aq => aq.ProjectId == projectId && aq.CourseName == courseName)
+    .ToList();
+
                 var scoreSectionList = new List<SectionResult>();
+
                 double totalScore = 0;
 
                 // ✅ OPTIMIZATION 13: Create section config lookup for O(1) access
@@ -1081,11 +1087,27 @@ namespace SPA.Controllers
                                        (!string.IsNullOrEmpty(selectedLanguageOrSubject) &&
                                         sectionName.EndsWith(":" + selectedLanguageOrSubject, StringComparison.OrdinalIgnoreCase));
 
+
                     if (!shouldProcess) continue;
 
                     var setsArray = section.Value as JArray;
                     var correctSet = setsArray?.FirstOrDefault(s => s["Set"]?.ToString() == bookletSet);
                     var questions = correctSet?["Questions"] as JArray;
+                    var filteredQuestions = ambiguousQuestions.Where(aq => aq.Section == sectionName && aq.SetCode == bookletSet).ToList();
+
+                    List<int> ambiguousQuestionNumbers = new List<int>();
+                    Dictionary<int, int> ambiguousMarkingIds = new Dictionary<int, int>();
+
+                    // Populate the lists with data from ambiguousQueList
+                    if (filteredQuestions != null)
+                    {
+                        foreach (var ambiguousQue in filteredQuestions)
+                        {
+                            ambiguousQuestionNumbers.Add(ambiguousQue.QuestionNumber);
+                            ambiguousMarkingIds[ambiguousQue.QuestionNumber] = ambiguousQue.MarkingId;
+                        }
+                    }
+
                     if (questions == null) continue;
 
                     // ✅ OPTIMIZATION 14: Fast section config lookup
@@ -1103,6 +1125,9 @@ namespace SPA.Controllers
                     {
                         string questionNo = q["QuestionNo"]?.ToString();
                         string correctAnswer = q["Answer"]?.ToString();
+                        bool isAmbiguousQuestion = ambiguousQuestionNumbers.Contains(Int32.Parse(questionNo));
+
+
 
                         if (string.IsNullOrEmpty(questionNo) || string.IsNullOrEmpty(correctAnswer)) continue;
 
@@ -1119,16 +1144,46 @@ namespace SPA.Controllers
                                 IsCorrect = isCorrect
                             });
 
-                            if (isCorrect)
+                            if (isAmbiguousQuestion)
                             {
-                                correct++;
-                                questionResults[questionNo] = 1;
+                                int markingId = ambiguousMarkingIds[Int32.Parse(questionNo)];
+                                switch (markingId)
+                                {
+                                    case 1:
+                                        {
+                                            correct++;
+                                            questionResults[questionNo] = 1;
+
+                                        }
+                                        continue;
+                                    case 2:
+                                        if (!string.IsNullOrEmpty(givenAnswer))
+                                        {
+                                            correct++;
+                                            questionResults[questionNo] = 1;
+                                        }
+                                        continue;
+                                    case 3:
+                                        // Don’t award marks to any candidate
+                                        continue;
+                                }
                             }
+
                             else
                             {
-                                wrong++;
-                                questionResults[questionNo] = 0;
+
+                                if (isCorrect)
+                                {
+                                    correct++;
+                                    questionResults[questionNo] = 1;
+                                }
+                                else
+                                {
+                                    wrong++;
+                                    questionResults[questionNo] = 0;
+                                }
                             }
+
                         }
                     }
 
