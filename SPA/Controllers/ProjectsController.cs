@@ -176,6 +176,9 @@ namespace SPA.Controllers
                     var scannedCount = await _firstDbContext.OMRdatas
                                                             .Where(p => p.ProjectId == projectId)
                                                             .CountAsync();
+                    var extractedCount = await _firstDbContext.ExtractedOMRDatas
+                                                            .Where(p => p.ProjectId == projectId)
+                                                            .CountAsync();
                     var absenteeCount = await _firstDbContext.Absentees
                                                              .Where(p => p.ProjectID == projectId)
                                                              .CountAsync();
@@ -191,6 +194,7 @@ namespace SPA.Controllers
                     {
                         OMRImages = imageCount,
                         ScannedData = scannedCount,
+                        ExtractedOMRData = extractedCount,
                         AbsenteesUpload = absenteeCount,
                         Registration = registrationCount,
                         Keys = keyCount,
