@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
 using SPA.Data;
 using SPA.Services;
@@ -209,7 +210,7 @@ namespace SPA.Controllers
 
      
         [HttpDelete]
-        public async Task<IActionResult> DeleteAbsentee(int ProjectId, string WhichDatabase)
+        public async Task<IActionResult> DeleteAbsentee(int ProjectId, string WhichDatabase, string? rollno = null)
         {
             if (ProjectId <= 0)
             {
@@ -218,61 +219,64 @@ namespace SPA.Controllers
 
             try
             {
-                if (WhichDatabase == "Local")
+                var dbContext = _firstDbContext;
+
+                if (dbContext == null)
                 {
-                    if (_firstDbContext == null)
-                    {
-                        return StatusCode(500, "Local database context is not initialized.");
-                    }
-
-                    var deleteabsentee = await _firstDbContext.Absentees
-                        .Where(p => p.ProjectID == ProjectId).ToListAsync();
-
-                    if (deleteabsentee == null || deleteabsentee.Count == 0)
-                    {
-                        return Ok("No absentee records found for this ProjectId in the Local database.");
-                    }
-
-                    _firstDbContext.Absentees.RemoveRange(deleteabsentee);
-                    await _firstDbContext.SaveChangesAsync();
+                    return StatusCode(500, $"{WhichDatabase} database context is not initialized.");
                 }
+
+                if (WhichDatabase != "Local" && !await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(rollno))
+                {
+                    var rollNumbers = rollno.Split(',').Select(r => r.Trim()).ToList();
+
+                    var absentees = await dbContext.Absentees
+                        .Where(a => a.ProjectID == ProjectId && rollNumbers.Contains(a.RollNo))
+                        .ToListAsync();
+
+                    if (absentees == null || absentees.Count == 0)
+                    {
+                        return NotFound("No absentee records found for the specified roll numbers.");
+                    }
+
+                    dbContext.Absentees.RemoveRange(absentees);
+                }
+
                 else
                 {
-                    if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
-                    {
-                        return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
-                    }
-
-                    if (_secondDbContext == null)
-                    {
-                        return StatusCode(500, "Online database context is not initialized.");
-                    }
-
-                    var deleteabsentee = await _secondDbContext.Absentees
+                    // Bulk delete
+                    var deleteabsentee = await dbContext.Absentees
                         .Where(p => p.ProjectID == ProjectId).ToListAsync();
 
                     if (deleteabsentee == null || deleteabsentee.Count == 0)
                     {
-                        return Ok("No absentee records found for this ProjectId in the Online database.");
+                        return Ok("No absentee records found for this ProjectId.");
                     }
 
-                    _secondDbContext.Absentees.RemoveRange(deleteabsentee);
-                    await _secondDbContext.SaveChangesAsync();
+                    dbContext.Absentees.RemoveRange(deleteabsentee);
                 }
+
+                await dbContext.SaveChangesAsync();
 
                 var userIdClaim = HttpContext?.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userID))
                 {
-                    _logger.LogEvent($"Absentee Data Deleted for Project : {ProjectId}", "Registration Data", userID, WhichDatabase);
+                    _logger.LogEvent($"Absentee Data Deleted for Project : {ProjectId}", "Absentee", userID, WhichDatabase);
                 }
 
-                return Ok("Absentees deleted successfully.");
+                return Ok("Absentee(s) deleted successfully.");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString(), ex.Message, "Absentees", WhichDatabase);
                 return StatusCode(500, $"An error occurred: {ex.Message}");
             }
+
         }
 
     }
