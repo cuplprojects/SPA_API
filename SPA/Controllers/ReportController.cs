@@ -1,141 +1,4 @@
-﻿/*using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SPA.Data;
-using SPA.Models.NonDBModels;
-using SPA.Models;
-using SPA.Services;
-using Newtonsoft.Json;
-using System.Dynamic;
-
-namespace SPA.Controllers
-{
-    [Route("api/[controller]")]
-    [ApiController]
-    public class ReportController : ControllerBase
-    {
-        private readonly FirstDbContext _firstDbContext;
-        private readonly SecondDbContext _secondDbContext;
-        private readonly IChangeLogger _changeLogger;
-        private readonly ISecurityService _securityService;
-
-        public ReportController(FirstDbContext firstDbContext, SecondDbContext secondDbContext, IChangeLogger changeLogger, ISecurityService securityService)
-        {
-            _firstDbContext = firstDbContext;
-            _secondDbContext = secondDbContext;
-            _changeLogger = changeLogger;
-            _securityService = securityService;
-        }
-
-        [HttpPost("GetFilteredData")]
-        public async Task<ActionResult<List<ExpandoObject>>> GetFilteredData(string WhichDatabase, int ProjectId)
-        {
-            var data = new List<ExpandoObject>();
-
-            IQueryable<RegistrationData> registrationQuery = null;
-            IQueryable<Score> scoreQuery = null;
-            IQueryable<OMRdata> omrQuery = null;
-            IQueryable<CorrectedOMRData> correctedQuery = null;
-
-            // Choose the correct database context
-            if (WhichDatabase == "Local")
-            {
-                registrationQuery = _firstDbContext.RegistrationDatas.Where(r => r.ProjectId == ProjectId);
-                scoreQuery = _firstDbContext.Scores.Where(s => s.ProjectId == ProjectId);
-                omrQuery = _firstDbContext.OMRdatas.Where(s => s.ProjectId == ProjectId && s.Status == 1);
-                correctedQuery = _firstDbContext.CorrectedOMRDatas.Where(s => s.ProjectId == ProjectId);
-            }
-            else
-            {
-                registrationQuery = _secondDbContext.RegistrationDatas.Where(r => r.ProjectId == ProjectId);
-                scoreQuery = _secondDbContext.Scores.Where(s => s.ProjectId == ProjectId);
-                omrQuery = _secondDbContext.OMRdatas.Where(s => s.ProjectId == ProjectId && s.Status == 1);
-                correctedQuery = _secondDbContext.CorrectedOMRDatas.Where(s => s.ProjectId == ProjectId);
-            }
-
-            // Fetch data
-            var registrationDataList = await registrationQuery.ToListAsync();
-            var scoreList = await scoreQuery.ToListAsync();
-            var omrDataList = await omrQuery.ToListAsync();
-            var correctedOMRDataList = await correctedQuery.ToListAsync();
-
-            // Create dictionaries for quick lookup
-            var scoreDict = scoreList.ToDictionary(s => s.RollNumber, s => s.TotalScore);
-
-            var omrDataDict = omrDataList.ToDictionary(
-                omr =>
-                {
-                    var omrJson = JsonConvert.DeserializeObject<Dictionary<string, string>>(omr.OmrData);
-                    return omrJson.GetValueOrDefault("Roll Number");
-                },
-                omr => new { omr.BarCode, omr.OmrData }
-            );
-
-            var correctedOmrDataDict = correctedOMRDataList.ToDictionary(
-                corrected =>
-                {
-                    var correctedJson = JsonConvert.DeserializeObject<Dictionary<string, string>>(corrected.CorrectedOmrData);
-                    return correctedJson.GetValueOrDefault("Roll Number");
-                },
-                corrected => new { corrected.BarCode, corrected.CorrectedOmrData }
-            );
-
-            // Create combined data
-            foreach (var registration in registrationDataList)
-            {
-                var registrationJson = JsonConvert.DeserializeObject<Dictionary<string, string>>(registration.RegistrationsData);
-
-                dynamic combinedData = new ExpandoObject();
-                var combinedDataDict = (IDictionary<string, object>)combinedData;
-
-                combinedData.RollNumber = registration.RollNumber;
-                combinedData.MarksObtained = scoreDict.TryGetValue(registration.RollNumber, out var score) ? score.ToString() : "absent";
-
-                // Add fields from registration data dynamically
-                foreach (var kvp in registrationJson)
-                {
-                    combinedDataDict[kvp.Key] = kvp.Value;
-                }
-
-                // Add OMRData if roll number matches
-                if (omrDataDict.TryGetValue(registration.RollNumber, out var omrData))
-                {
-                    // Deserialize OMRData
-                    var omrDataJson = JsonConvert.DeserializeObject<Dictionary<string, string>>(omrData.OmrData);
-                    // Add to AdditionalFields
-                    foreach (var kvp in omrDataJson)
-                    {
-                        combinedDataDict[kvp.Key] = kvp.Value;
-                    }
-                    combinedData.OMRDataBarCode = omrData.BarCode;
-                }
-
-                // Add CorrectedOMRData if roll number matches
-                if (correctedOmrDataDict.TryGetValue(registration.RollNumber, out var correctedOmrData))
-                {
-                    // Deserialize CorrectedOMRData
-                    var correctedOmrDataJson = JsonConvert.DeserializeObject<Dictionary<string, string>>(correctedOmrData.CorrectedOmrData);
-                    // Add to AdditionalFields
-                    foreach (var kvp in correctedOmrDataJson)
-                    {
-                        combinedDataDict[kvp.Key] = kvp.Value;
-                    }
-                    combinedData.OMRDataBarCode = correctedOmrData.BarCode;
-                }
-
-                data.Add(combinedData);
-            }
-
-            if (!data.Any())
-            {
-                return NotFound("No data found for the specified fields.");
-            }
-
-            return Ok(data);
-        }
-    }
-}
-*/
-
+﻿
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SPA.Data;
@@ -145,6 +8,7 @@ using SPA.Services;
 using Newtonsoft.Json;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using System.Text.Json;
 
 
 namespace SPA.Controllers
@@ -452,6 +316,86 @@ namespace SPA.Controllers
             return Ok(data);
         }
 
+
+        public class FlagDto
+        {
+            public int Id { get; set; }
+            public string Remarks { get; set; }
+            public string BarCode { get; set; }
+            public string Field { get; set; }
+            public string FieldNameValue { get; set; }
+            public string CorrectedValue { get; set; } // Extracted value from JSON
+            public bool isCorrected { get; set; }
+            public int ProjectId { get; set; }
+            public int ? UpdatedByUserId { get; set; } // Assuming you want to include UserId as well
+        }
+
+        [HttpGet("ByProject/{ProjectId}")]
+        public async Task<ActionResult<List<FlagDto>>> GetFlagbyProjectForReport(int ProjectId, string WhichDatabase)
+        {
+           
+                var flags = await _firstDbContext.Flags
+                                    .Where(o => o.ProjectId == ProjectId)
+                                    .ToListAsync();
+
+                var result = new List<FlagDto>();
+
+                foreach (var flag in flags)
+                {
+                    var dto = new FlagDto
+                    {
+                        Id = flag.FlagId,
+                        Remarks = flag.Remarks,
+                        BarCode = flag.BarCode,
+                        FieldNameValue = flag.FieldNameValue,
+                        Field = flag.Field,
+                        isCorrected = flag.isCorrected,
+                        ProjectId = flag.ProjectId,
+                        UpdatedByUserId = flag.UpdatedByUserId,
+                    };
+
+                    if (flag.isCorrected)
+                    {
+                        var correctedOmr = await _firstDbContext.CorrectedOMRDatas
+                            .FirstOrDefaultAsync(o => o.ProjectId == ProjectId && o.BarCode == flag.BarCode);
+
+                        if (correctedOmr != null && !string.IsNullOrWhiteSpace(correctedOmr.CorrectedOmrData))
+                        {
+                            try
+                            {
+                                using var doc = JsonDocument.Parse(correctedOmr.CorrectedOmrData);
+                                var root = doc.RootElement;
+
+                                if (root.TryGetProperty(flag.Field, out var fieldValue))
+                                {
+                                    dto.CorrectedValue = fieldValue.GetString();
+                                }
+                                else
+                                {
+                                    dto.CorrectedValue = $"Field '{flag.Field}' not found in JSON";
+                                }
+                            }
+                            catch (Newtonsoft.Json.JsonException)
+                            {
+                                dto.CorrectedValue = "Invalid JSON format";
+                            }
+                        }
+                        else
+                        {
+                            dto.CorrectedValue = "Corrected OMR not found";
+                        }
+                    }
+
+                    result.Add(dto);
+                }
+
+                if (!result.Any())
+                    return NotFound();
+
+                return result;
+            
+          
+        }
 
         private bool ReportExists(int id, string WhichDatabase)
         {
