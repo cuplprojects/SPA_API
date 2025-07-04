@@ -36,6 +36,15 @@ namespace SPA.Controllers
             return Ok(ambiguousQuestions);
         }
 
+        [AllowAnonymous]
+        [HttpGet("ContainsMarkingRule/{projectId:int}")]
+        public ActionResult<bool> ContainsMarkingRule(int projectId)
+        {
+            var containsMarkingRule = _firstDbContext.AmbiguousQues.Where(mr => mr.ProjectId == projectId && (mr.MarkingId == 5 || mr.MarkingId == 4))
+                .Select(a=>a.CourseName).Distinct().ToList();
+            return Ok(containsMarkingRule);
+        }
+
         [HttpGet("BSetResponsesByProject/{projectId}")]
         public async Task<IActionResult> GetBSetResponsesByProject(int projectId)
         {

@@ -160,5 +160,27 @@ namespace SPA.Controllers
             }
         }
 
+        [AllowAnonymous]
+        [HttpGet("MultipleResponses")]
+        public async Task<IActionResult> AuditMultipleResponses(string WhichDatabase, int ProjectId, string CourseName)
+        {
+            try
+            {
+                await _auditService.PerformMultipleResponsesAuditAsync(WhichDatabase, ProjectId, CourseName);
+                var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    _logger.LogEvent($"Multiple Responses Audit Ran", "Audit", userId, WhichDatabase);
+                }
+                return Ok("Audit ran Successfully");
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString(), ex.Message, "Audit", WhichDatabase);
+                return BadRequest(ex.Message);
+            }
+        }
+
     }
 }

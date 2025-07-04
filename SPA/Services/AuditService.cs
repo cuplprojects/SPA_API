@@ -149,7 +149,36 @@ namespace SPA.Services
             }
         }
 
-       
+        public async Task PerformMultipleResponsesAuditAsync(string WhichDatabase, int ProjectId, string CourseName)
+        {
+            try
+            {
+                var correctedomrDataList = await _omrDataService.GetCorrectedOmrDataListAsync(WhichDatabase, ProjectId);
+                var omrDataList = await _omrDataService.GetOmrDataListWithStatus1Async(WhichDatabase, ProjectId);
+                var fieldConfigs = await _fieldConfigService.GetFieldConfigsAsync(WhichDatabase, ProjectId);
+                var ambiguousQueList = await _omrDataService.GetAmbiguousQuesAsync(WhichDatabase, ProjectId, CourseName);
+                foreach (var config in fieldConfigs)
+                {
+                    await _fieldConfigService.CheckForMultipleResponsesAsync(omrDataList,correctedomrDataList, ambiguousQueList, config.FieldName, ProjectId, WhichDatabase);
+                }
+                foreach (var omrdata in omrDataList)
+                {
+                    omrdata.AuditCycleNumber++;
+                }
+                if (WhichDatabase == "Local")
+                {
+                    await _firstDbContext.SaveChangesAsync();
+                }
+                else
+                {
+                    await _secondDbContext.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred while performing the audit." + ex.Message);
+            }
+        }
 
         public async Task PerformCheckwithRegistrationAuditAsync(string WhichDatabase, int ProjectId)
         {

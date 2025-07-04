@@ -47,6 +47,310 @@ namespace SPA.Services
             }
         }
 
+        public async Task CheckForMultipleResponsesAsync(
+    List<OMRdata> omrDataList,
+    List<CorrectedOMRData> correctedomrDataList,
+    List<AmbiguousQue> ambiguousQueList,
+    string fieldName,
+    int ProjectId,
+    string WhichDatabase)
+        {
+            try
+            {
+                Console.WriteLine("Checking for multiple responses...");
+                // Pre-process response configurations for faster lookup
+
+                // Group ambiguous questions by SetCode for efficient lookup
+                var ambiguousQuestionsBySetCode = ambiguousQueList
+                    .GroupBy(q => q.SetCode)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                // Process original OMR data
+                foreach (var omr in omrDataList)
+                {
+                    await ProcessOMRDataAsync(omr.OmrData, omr.BarCode, ambiguousQuestionsBySetCode,
+                         ProjectId, WhichDatabase);
+                }
+
+                // Process corrected OMR data
+                foreach (var correctedOmr in correctedomrDataList)
+                {
+                    await ProcessOMRDataAsync(correctedOmr.CorrectedOmrData, correctedOmr.BarCode,
+                        ambiguousQuestionsBySetCode, ProjectId, WhichDatabase);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error checking for multiple responses: {ex.Message}", ex);
+            }
+        }
+
+        private async Task ProcessOMRDataAsync(
+            string omrDataJson,
+            string barCode,
+            Dictionary<string, List<AmbiguousQue>> ambiguousQuestionsBySetCode,
+            int ProjectId,
+            string WhichDatabase)
+        {
+            var data = JsonConvert.DeserializeObject<Dictionary<string, string>>(omrDataJson);
+            if (data == null)
+            {
+                Console.WriteLine($"Failed to deserialize OMR data for BarCode: {barCode}");
+                return;
+            }
+
+            if (!data.TryGetValue("Booklet Series", out string bookletSeries))
+            {
+                Console.WriteLine($"Booklet Series not found for BarCode: {barCode}");
+                return;
+            }
+
+            Console.WriteLine($"Processing Booklet Series: {bookletSeries} for BarCode: {barCode}");
+
+            // Get relevant questions for this booklet series
+            if (!ambiguousQuestionsBySetCode.TryGetValue(bookletSeries, out var relevantQuestions))
+            {
+                Console.WriteLine($"No ambiguous questions found for Booklet Series: {bookletSeries}");
+                return;
+            }
+
+            if (!data.TryGetValue("Answers", out string answersJson))
+            {
+                Console.WriteLine($"Answers field missing for BarCode: {barCode}");
+                return;
+            }
+
+            var answers = JsonConvert.DeserializeObject<Dictionary<string, string>>(answersJson);
+            if (answers == null)
+            {
+                Console.WriteLine($"Failed to deserialize answers for BarCode: {barCode}");
+                return;
+            }
+
+            // Process each ambiguous question
+            var flagsToCreate = new List<Flag>();
+
+            foreach (var question in relevantQuestions)
+            {
+                var questionKey = question.QuestionNumber.ToString();
+
+                if (!answers.TryGetValue(questionKey, out string response))
+                {
+                    Console.WriteLine($"No response found for question {question.QuestionNumber} in Booklet Series {bookletSeries}");
+                    continue;
+                }
+
+                await ProcessQuestionResponseAsync(
+                    question, response, barCode, data,
+                    ProjectId, WhichDatabase, flagsToCreate);
+            }
+
+            // Batch create flags if any
+            if (flagsToCreate.Any())
+            {
+                await CreateFlagsAsync(flagsToCreate, WhichDatabase);
+            }
+           
+        }
+
+        private async Task ProcessQuestionResponseAsync(
+            AmbiguousQue question,
+            string response,
+            string barCode,
+            Dictionary<string, string> data,
+            int ProjectId,
+            string WhichDatabase,
+            List<Flag> flagsToCreate
+           )
+        {
+            Console.WriteLine($"Processing Question: {question.QuestionNumber}, Response: {response}, BarCode: {barCode}");
+
+            // Handle multiple responses (marked with "*") for both MarkingId 4 and 5
+            if (response == "*")
+            {
+                var flag = new Flag
+                {
+                    FlagId = GetNextFlagId(WhichDatabase),
+                    Remarks = $"Multiple responses for question {question.QuestionNumber} in Booklet Series {data["Booklet Series"]}",
+                    FieldNameValue = "*",
+                    Field = "Answers",
+                    BarCode = barCode,
+                    ProjectId = ProjectId,
+                    UpdatedByUserId = 0 // Consider passing current user ID as parameter
+                };
+                flagsToCreate.Add(flag);
+                return;
+            }
+            else if (question.MarkingId != 4 && question.MarkingId != 5)
+            {
+                Console.WriteLine($"Unknown MarkingId {question.MarkingId} for question {question.QuestionNumber}");
+            }
+        }
+
+        private async Task<Dictionary<string, Section>> BuildSectionConfigMapAsync(List<ResponseConfig> responseConfig)
+        {
+            var sectionConfigMap = new Dictionary<string, Section>();
+
+            foreach (var config in responseConfig)
+            {
+                try
+                {
+                    var sections = config.Sections ?? new List<Section>();
+
+                    foreach (var section in sections)
+                    {
+                        if (!string.IsNullOrEmpty(section.Name))
+                        {
+                            sectionConfigMap[section.Name] = section;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error deserializing section config: {ex.Message}");
+                }
+            }
+
+            return sectionConfigMap;
+        }
+
+        private async Task CreateFlagsAsync(List<Flag> flags, string whichDatabase)
+        {
+           
+            foreach (var flag in flags)
+            {
+                bool exists = await _FirstDbcontext.Flags
+            .AnyAsync(f => f.BarCode == flag.BarCode &&
+                           f.Field == flag.Field &&
+                           f.FieldNameValue == flag.FieldNameValue);
+                if (!exists)
+                {
+                    await _FirstDbcontext.Flags.AddAsync(flag);
+                    Console.WriteLine($"Flag created: {flag.Remarks} for BarCode: {flag.BarCode}");
+                }
+                else
+                {
+                    Console.WriteLine($"Duplicate flag ignored for BarCode: {flag.BarCode}, Question: {flag.FieldNameValue}");
+                }
+            }
+            await _FirstDbcontext.SaveChangesAsync();
+        }
+
+      
+
+
+        /*    public async Task CheckForMultipleResponsesAsync(
+                List<OMRdata> omrDataList,
+                List<CorrectedOMRData> correctedomrDataList,
+                List<AmbiguousQue> ambiguousQueList,
+               List<ResponseConfig> responseConfig, 
+                string fieldName,  // You may not need this anymore if question comes from ambiguousQueList
+                int ProjectId,
+                string WhichDatabase)
+            {
+                try
+                {
+                    foreach (var omr in omrDataList)
+                    {
+                        var data = JsonConvert.DeserializeObject<Dictionary<string, string>>(omr.OmrData);
+
+                        if (data != null && data.TryGetValue("Booklet Series", out string bookletSeries))
+                        {
+                            Console.WriteLine($"Booklet Series: {bookletSeries}");
+
+                            // Step 1: Filter ambiguous questions for this booklet series
+                            var relevantQuestions = ambiguousQueList
+                                .Where(q => q.SetCode == bookletSeries)
+                                .ToList();
+
+                            // Step 2: Get the Answers JSON string
+                            if (data.TryGetValue("Answers", out string answersJson))
+                            {
+                                var answers = JsonConvert.DeserializeObject<Dictionary<string, string>>(answersJson);
+
+                                // Step 3: Loop through ambiguous questions and check each one
+                                foreach (var question in relevantQuestions)
+                                {
+                                    if (question.MarkingId == 5 && answers != null && answers.TryGetValue(question.QuestionNumber.ToString(), out string response)) {
+                                        Console.WriteLine($"Ambiguous Question: {question.QuestionNumber}, Response: {response}");
+                                        if (response == "*")
+                                        {
+                                            var flag = new Flag
+                                            {
+                                                FlagId = GetNextFlagId(WhichDatabase),
+                                                Remarks = $"Multiple responses for question {question.QuestionNumber} in Booklet Series {bookletSeries}",
+                                                FieldNameValue = question.QuestionNumber.ToString(),
+                                                Field = "Answers",
+                                                BarCode = omr.BarCode,
+                                                ProjectId = ProjectId,
+                                                UpdatedByUserId = 0 // You may want to set this to the current user ID
+                                            };
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine($"Else no question '{question.QuestionNumber}' find with response *");
+                                        }
+
+
+                                    }
+                                    else if (question.MarkingId == 4 && answers != null && answers.TryGetValue(question.QuestionNumber.ToString(), out string responses))
+                                    {
+                                        if (responses == "*")
+                                        {
+                                            var flag = new Flag
+                                            {
+                                                FlagId = GetNextFlagId(WhichDatabase),
+                                                Remarks = $"Multiple responses for question {question.QuestionNumber} in Booklet Series {bookletSeries}",
+                                                FieldNameValue = question.QuestionNumber.ToString(),
+                                                Field = "Answers",
+                                                BarCode = omr.BarCode,
+                                                ProjectId = ProjectId,
+                                                UpdatedByUserId = 0 // You may want to set this to the current user ID
+                                            };
+                                        }
+                                        else
+                                        {
+                                            if (responses == question.Option)
+                                            {
+                                                data.TryGetValue("Roll Number", out string RollNumber);
+                                                foreach (var config in responseConfig)
+                                                {
+                                                    var configs = JsonConvert.DeserializeObject<Section>(config.SectionsJson);
+                                                    if (configs.Name == question.Section)
+                                                    {
+                                                        var score = await _FirstDbcontext.Scores
+                                                    .FirstOrDefaultAsync(s => s.ProjectId == ProjectId && s.RollNumber == RollNumber && s.CourseName == question.CourseName);
+                                                        score.TotalScore += configs.MarksCorrect;
+                                                    }
+
+
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine($"No response found for question {question.QuestionNumber} in Booklet Series {bookletSeries}");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                Console.WriteLine("Answers field missing in OmrData.");
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("Booklet Series not found in OmrData.");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Error checking for multiple responses: {ex.Message}", ex);
+                }
+            }*/
+
 
         public async Task CheckFieldValuesinRangeAsync(
     List<OMRdata> omrDataList,
