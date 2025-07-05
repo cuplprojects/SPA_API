@@ -14,6 +14,7 @@ using System.Security.Claims;
 using System.Drawing.Printing;
 using Microsoft.AspNetCore.Authorization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace SPA.Controllers
 {
@@ -386,34 +387,111 @@ namespace SPA.Controllers
                 return BadRequest("Invalid OMR data format.");
             }
 
-            // Update the specific field with the new value in the corrected data
-            /*if (omrDataDict.ContainsKey(input.FieldName))
-            {
-                omrDataDict[input.FieldName] = JsonDocument.Parse($"\"{input.Value}\"").RootElement;
-            }*/
-           /* else
-            {
-                return BadRequest($"Field '{input.FieldName}' not found in OMR data.");
-            }*/
+          
             if (WhichDatabase == "Local")
             {
                 if (existingCorrectedData != null)
                 {
-                    var originalValue = omrDataDict[input.FieldName].ToString();
-                    omrDataDict[input.FieldName] = JsonDocument.Parse($"\"{input.Value}\"").RootElement;
-                    existingCorrectedData.CorrectedOmrData = System.Text.Json.JsonSerializer.Serialize(omrDataDict).Replace("\\u0027", "'");
+                    string originalValue = "";
+                    Console.WriteLine(input.FieldName);
+                    if (input.FieldName == "Answers" && input.Value.Contains(":"))
+                    {
+                        Console.WriteLine("Processing Answers field correction");
+                        // Extract question number and new answer value
+                        var parts = input.Value.Split(':', 2);
+                        var questionNo = parts[0].Trim();
+                        var newAnswer = parts[1].Trim().Trim('\'');
+
+                        // Get current Answers JSON string (e.g., {1:'A',2:'B'...})
+                        var answersJsonRaw = omrDataDict["Answers"].ToString();
+                        string validJson = answersJsonRaw.Replace("'", "\"");
+                        // Replace single quotes with proper JSON double quotes
+                        validJson = Regex.Replace(validJson, @"(?<=\{|\s|,)(\d+)(?=\s*:)", "\"$1\"");
+
+                        // Deserialize to dictionary
+                        var answersDict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(validJson);
+
+                        if (answersDict.ContainsKey(questionNo))
+                        {
+                            originalValue = answersDict[questionNo];
+                            answersDict[questionNo] = newAnswer;
+                        }
+                        else
+                        {
+                            originalValue = "[Not Found]";
+                            answersDict[questionNo] = newAnswer; // Add new key if it doesn't exist
+                        }
+
+                        // Re-serialize and update omrDataDict
+                        var formattedAnswers = "{" + string.Join(",", answersDict.Select(kvp => $"{kvp.Key}:'{kvp.Value}'")) + "}";
+
+                        omrDataDict["Answers"] = JsonDocument.Parse($"\"{formattedAnswers}\"").RootElement;
+                    }
+                    else
+                    {
+                        originalValue = omrDataDict[input.FieldName].ToString();
+                        omrDataDict[input.FieldName] = JsonDocument.Parse($"\"{input.Value}\"").RootElement;
+                    }
+
+                    // Update the existing corrected data
+                    existingCorrectedData.CorrectedOmrData = System.Text.Json.JsonSerializer
+                        .Serialize(omrDataDict)
+                        .Replace("\\u0027", "'");
+
                     _FirstDbcontext.CorrectedOMRDatas.Update(existingCorrectedData);
                     omrData.Status = status;
+
                     var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                     if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                     {
-                        _logger.LogEvent($"Data corrected for {omrData.BarCode}: Field:{input.FieldName} : Original Value {originalValue}, New Value {input.Value}", "Correction", userId, WhichDatabase);
+                        _logger.LogEvent(
+                            $"Data corrected for {omrData.BarCode}: Field:{input.FieldName} : Original Value {originalValue}, New Value {input.Value}",
+                            "Correction", userId, WhichDatabase
+                        );
                     }
                 }
+
                 else
                 {
-                    var originalValue = omrDataDict[input.FieldName].ToString();
-                    omrDataDict[input.FieldName] = JsonDocument.Parse($"\"{input.Value}\"").RootElement;
+                    string originalValue = "";
+                    Console.WriteLine(input.FieldName + input.Value);
+                    if (input.FieldName == "Answers" && input.Value.Contains(":"))
+                    {
+                        // Extract question number and new answer value
+                        var parts = input.Value.Split(':', 2);
+                        var questionNo = parts[0].Trim();
+                        var newAnswer = parts[1].Trim().Trim('\'');
+                        Console.WriteLine(questionNo);
+                        // Get current Answers JSON string (e.g., {1:'A',2:'B'...})
+                        var answersJsonRaw = omrDataDict["Answers"].ToString();
+                        Console.WriteLine(answersJsonRaw);
+                        // Replace single quotes with proper JSON double quotes
+                        string validJson = answersJsonRaw.Replace("'", "\"");
+                        validJson = Regex.Replace(validJson, @"(?<=\{|\s|,)(\d+)(?=\s*:)", "\"$1\"");
+                        Console.WriteLine(validJson);
+                        // Deserialize to dictionary
+                        var answersDict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(validJson);
+                        Console.WriteLine(answersDict);
+                        if (answersDict.ContainsKey(questionNo))
+                        {
+                            originalValue = answersDict[questionNo];
+                            answersDict[questionNo] = newAnswer;
+                        }
+                        else
+                        {
+                            originalValue = "[Not Found]";
+                            answersDict[questionNo] = newAnswer; // Add new key if it doesn't exist
+                        }
+
+                        // Re-serialize and update omrDataDict
+                        var formattedAnswers = "{" + string.Join(",", answersDict.Select(kvp => $"{kvp.Key}:'{kvp.Value}'")) + "}";
+
+                        omrDataDict["Answers"] = JsonDocument.Parse($"\"{formattedAnswers}\"").RootElement;
+                    }
+                    else 
+                    {
+                         originalValue = omrDataDict[input.FieldName].ToString();
+                        omrDataDict[input.FieldName] = JsonDocument.Parse($"\"{input.Value}\"").RootElement; }
                     var correctedOMRData = new CorrectedOMRData
                     {
                         ProjectId = omrData.ProjectId,

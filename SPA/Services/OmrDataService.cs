@@ -35,6 +35,56 @@ namespace SPA.Services
 
         }
 
+        public async Task<List<OMRdata>> GetOmrDataListWithStatus1Async(string WhichDatabase, int ProjectId)
+        {
+            if (WhichDatabase == "Local")
+            {
+                return await _FirstDbcontext.OMRdatas.Where(i => i.ProjectId == ProjectId && i.Status ==1).Take(2).ToListAsync();
+            }
+            else
+            {
+                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    throw new Exception("Connection Unavailable");
+                }
+                return await _SecondDbContext.OMRdatas.Where(i => i.ProjectId == ProjectId).ToListAsync();
+            }
+
+        }
+
+        public async Task<List<AmbiguousQue>> GetAmbiguousQuesAsync(string WhichDatabase, int ProjectId, string CourseName)
+        {
+            if (WhichDatabase == "Local")
+            {
+                return await _FirstDbcontext.AmbiguousQues.Where(i => i.ProjectId == ProjectId && i.CourseName == CourseName && (i.MarkingId == 5 || i.MarkingId == 4)).ToListAsync();
+            }
+            else
+            {
+                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    throw new Exception("Connection Unavailable");
+                }
+                return await _SecondDbContext.AmbiguousQues.Where(i => i.ProjectId == ProjectId && i.CourseName == CourseName && (i.MarkingId == 5 || i.MarkingId == 4)).ToListAsync();
+            }
+
+        }
+
+        public async Task<List<ResponseConfig>> GetResponseConfigAsync(string WhichDatabase, int ProjectId, string CourseName)
+        {
+            if (WhichDatabase == "Local")
+            {
+                return await _FirstDbcontext.ResponseConfigs.Where(i => i.ProjectId == ProjectId && i.CourseName == CourseName).ToListAsync();
+            }
+            else
+            {
+                if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                {
+                    throw new Exception("Connection Unavailable");
+                }
+                return await _SecondDbContext.ResponseConfigs.Where(i => i.ProjectId == ProjectId && i.CourseName == CourseName).ToListAsync();
+            }
+
+        }
         public async Task<List<ExtractedOMRData>> GetExtractedOmrDataListAsync(string WhichDatabase, int ProjectId)
         {
             if (WhichDatabase == "Local")
@@ -55,7 +105,7 @@ namespace SPA.Services
         {
             if (WhichDatabase == "Local")
             {
-                return await _FirstDbcontext.CorrectedOMRDatas.Where(i => i.ProjectId == ProjectId).ToListAsync();
+                return await _FirstDbcontext.CorrectedOMRDatas.Where(i => i.ProjectId == ProjectId).Take(2).ToListAsync();
             }
             else
             {

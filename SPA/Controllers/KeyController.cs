@@ -90,6 +90,8 @@ namespace SPA.Controllers
 
             var key = await _firstDbContext.Keyss
                 .FirstOrDefaultAsync(k => k.ProjectId == ProjectId && k.CourseName == courseName);
+            var score = await _firstDbContext.Scores
+                .FirstOrDefaultAsync(k => k.ProjectId == ProjectId && k.CourseName == courseName);
             if (key != null)
             {
                _firstDbContext.Keyss.RemoveRange(key);
@@ -228,14 +230,15 @@ namespace SPA.Controllers
                         }
                     }
 
-                    var score = new Keys
+                    var keys = new Keys
                     {
                         ProjectId = ProjectId,
                         KeyData = System.Text.Json.JsonSerializer.Serialize(subjectData),
                         CourseName = courseName,
                     };
 
-                    await _firstDbContext.Keyss.AddAsync(score);
+                    await _firstDbContext.Keyss.AddAsync(keys);
+                     _firstDbContext.Scores.RemoveRange(score);
 
                     var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                     if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
