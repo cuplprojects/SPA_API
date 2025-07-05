@@ -1092,7 +1092,7 @@ namespace SPA.Controllers
                     var correctSet = setsArray?.FirstOrDefault(s => s["Set"]?.ToString() == bookletSet);
                     var questions = correctSet?["Questions"] as JArray;
                     var filteredQuestions = ambiguousQuestions.Where(aq => aq.Section == sectionName && aq.SetCode == bookletSet).ToList();
-
+                    var options = ambiguousQuestions.Where(aq => aq.Section == sectionName && aq.SetCode == bookletSet).Select(aq => aq.Option).FirstOrDefault();
                     List<int> ambiguousQuestionNumbers = new List<int>();
                     Dictionary<int, int> ambiguousMarkingIds = new Dictionary<int, int>();
 
@@ -1164,6 +1164,45 @@ namespace SPA.Controllers
                                     case 3:
                                         // Don’t award marks to any candidate
                                         continue;
+                                    case 4:
+                                        {
+                                            var acceptedOptions = options?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                                            if (!string.IsNullOrEmpty(givenAnswer) && acceptedOptions != null)
+                                            {
+                                                if (acceptedOptions.Any(opt => string.Equals(givenAnswer, opt, StringComparison.OrdinalIgnoreCase)))
+                                                {
+                                                    correct++;
+                                                    questionResults[questionNo] = 1;
+                                                }
+                                            }
+                                            continue;
+                                        }
+
+                                    case 5:
+                                        {
+                                            var requiredOptions = options?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                                            if (!string.IsNullOrEmpty(givenAnswer) && requiredOptions != null)
+                                            {
+                                                // Normalize answers for comparison
+                                                var givenAnswerSet = givenAnswer.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                                                                  .Select(a => a.ToUpperInvariant())
+                                                                                  .ToHashSet();
+
+                                                var requiredSet = requiredOptions.Select(o => o.ToUpperInvariant()).ToHashSet();
+
+                                                if (requiredSet.SetEquals(givenAnswerSet))
+                                                {
+                                                    correct++;
+                                                    questionResults[questionNo] = 1;
+                                                }
+                                                else
+                                                {
+                                                    wrong++;
+                                                    questionResults[questionNo] = 0;
+                                                }
+                                            }
+                                            continue;
+                                        }
                                 }
                             }
 
