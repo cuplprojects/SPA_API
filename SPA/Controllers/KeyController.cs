@@ -94,7 +94,7 @@ namespace SPA.Controllers
                 .FirstOrDefaultAsync(k => k.ProjectId == ProjectId && k.CourseName == courseName);
             if (key != null)
             {
-               _firstDbContext.Keyss.RemoveRange(key);
+               _firstDbContext.Keyss.Remove(key);
             }
 
             var subjectRangesJson = Request.Form["subjectRanges"];
@@ -238,7 +238,7 @@ namespace SPA.Controllers
                     };
 
                     await _firstDbContext.Keyss.AddAsync(keys);
-                     _firstDbContext.Scores.RemoveRange(score);
+                     //_firstDbContext.Scores.Remove(score);
 
                     var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                     if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
