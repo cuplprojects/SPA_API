@@ -19,11 +19,13 @@ namespace SPA.Controllers
 
         private readonly AuditService _auditService;
         private readonly ILoggerService _logger;
+        private readonly FirstDbContext _context;
 
-        public AuditController(AuditService auditService, ILoggerService logger)
+        public AuditController(AuditService auditService, ILoggerService logger, FirstDbContext context)
         {
             _auditService = auditService;
             _logger = logger;
+            _context = context;
         }
 
         [HttpGet("RangeAudit")]
@@ -35,7 +37,7 @@ namespace SPA.Controllers
                 var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
-                    _logger.LogEvent($"Audit Ran", "Audit", userId, WhichDatabase);
+                    _logger.LogEvent($"RangeAudit Ran for ProjectId : {ProjectId}", "Audit", userId, WhichDatabase);
                 }
                 return Ok("Audit ran Successfully");
 
@@ -46,8 +48,29 @@ namespace SPA.Controllers
                 return BadRequest(ex.Message);
             }
 
-
         }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAudits(string WhichDatabase, int ProjectId)
+        {
+            try
+            {
+                string searchPattern = $"%Ran for ProjectId : {ProjectId}%";
+
+                var audits = await _context.EventLogs
+                    .Where(log => EF.Functions.Like(log.Event, searchPattern))
+                    .Select(l=>l.Event)
+                    .ToListAsync();
+
+                return Ok(audits);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString(), ex.Message, "Audit", WhichDatabase);
+                return BadRequest(ex.Message);
+            }
+        }
+
 
 
         [HttpGet("RegistrationAudit")]
@@ -59,7 +82,7 @@ namespace SPA.Controllers
                 var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
-                    _logger.LogEvent($"Audit Ran", "Audit", userId, WhichDatabase);
+                    _logger.LogEvent($"RegistrationAudit Ran for ProjectId : {ProjectId}", "Audit", userId, WhichDatabase);
                 }
                 return Ok("Audit ran Successfully");
 
@@ -80,7 +103,7 @@ namespace SPA.Controllers
                 var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
-                    _logger.LogEvent($"Audit Ran", "Audit", userId, WhichDatabase);
+                    _logger.LogEvent($"DuplicateRollNumberAudit Ran for ProjectId : {ProjectId}", "Audit", userId, WhichDatabase);
                 }
                 return Ok("Audit ran Successfully");
 
@@ -103,7 +126,7 @@ namespace SPA.Controllers
                 var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
-                    _logger.LogEvent($"Audit Ran", "Audit", userId, WhichDatabase);
+                    _logger.LogEvent($"ContainsCharacterAudit Ran for ProjectId : {ProjectId}", "Audit", userId, WhichDatabase);
                 }
                 return Ok("Audit ran Successfully");
 
@@ -126,7 +149,7 @@ namespace SPA.Controllers
                 var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
-                    _logger.LogEvent($"Missing Roll Number Audit Ran", "Audit", userId, WhichDatabase);
+                    _logger.LogEvent($"MissingRollNumbers Ran for ProjectId : {ProjectId}", "Audit", userId, WhichDatabase);
                 }
                 return Ok("Audit ran Successfully");
 
@@ -148,7 +171,7 @@ namespace SPA.Controllers
                 var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
-                    _logger.LogEvent($"Mismatched with Extracted OMR Audit Ran", "Audit", userId, WhichDatabase);
+                    _logger.LogEvent($"MismatchedWithExtracted Ran for ProjectId : {ProjectId}", "Audit", userId, WhichDatabase);
                 }
                 return Ok("Audit ran Successfully");
 
@@ -170,7 +193,7 @@ namespace SPA.Controllers
                 var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
-                    _logger.LogEvent($"Multiple Responses Audit Ran", "Audit", userId, WhichDatabase);
+                    _logger.LogEvent($"MultipleResponses Ran for ProjectId : {ProjectId}", "Audit", userId, WhichDatabase);
                 }
                 return Ok("Audit ran Successfully");
 

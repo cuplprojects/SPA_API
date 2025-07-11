@@ -982,7 +982,7 @@ namespace SPA.Controllers
                         try
                         {
                             var registrationJson = JObject.Parse(registrationData.RegistrationsData);
-                            var subjectCodeToken = registrationJson["Subject Code"];
+                            var subjectCodeToken = registrationJson["Course Code"];
 
                             subjectCodes = subjectCodeToken switch
                             {
