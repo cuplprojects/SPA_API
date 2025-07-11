@@ -238,7 +238,9 @@ namespace SPA.Controllers
                     };
 
                     await _firstDbContext.Keyss.AddAsync(keys);
-                     //_firstDbContext.Scores.Remove(score);
+                    if(score!= null) { 
+                        _firstDbContext.Scores.Remove(score);
+                    }
 
                     var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                     if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
