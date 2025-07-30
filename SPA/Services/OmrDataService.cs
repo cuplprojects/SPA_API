@@ -39,7 +39,7 @@ namespace SPA.Services
         {
             if (WhichDatabase == "Local")
             {
-                return await _FirstDbcontext.OMRdatas.Where(i => i.ProjectId == ProjectId && i.Status ==1).Take(2).ToListAsync();
+                return await _FirstDbcontext.OMRdatas.Where(i => i.ProjectId == ProjectId && i.Status ==1).ToListAsync();
             }
             else
             {
@@ -105,7 +105,7 @@ namespace SPA.Services
         {
             if (WhichDatabase == "Local")
             {
-                return await _FirstDbcontext.CorrectedOMRDatas.Where(i => i.ProjectId == ProjectId).Take(2).ToListAsync();
+                return await _FirstDbcontext.CorrectedOMRDatas.Where(i => i.ProjectId == ProjectId).ToListAsync();
             }
             else
             {
