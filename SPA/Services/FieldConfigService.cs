@@ -902,7 +902,7 @@ List<string> absenteeRollNumbers)
                         AddFlag(corrected.BarCode,
                                                       key,
                                                      $"Missing {key} in extracted data",
-                                                       "Missing in field",
+                                                       "Missing in Extracted field",
                                                        ProjectId,
                                                        WhichDatabase);
                         continue;
@@ -945,7 +945,7 @@ List<string> absenteeRollNumbers)
                                                       corrected.BarCode,
                                                       key,
                                                       extractedValue ?? "null",
-                                                       $"Mismatch in {key}",
+                                                       $"Mismatch in Both {key}",
                                                        ProjectId,
                                                        WhichDatabase
                                                    );

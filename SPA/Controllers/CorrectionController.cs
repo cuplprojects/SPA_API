@@ -393,7 +393,6 @@ namespace SPA.Controllers
                 if (existingCorrectedData != null)
                 {
                     string originalValue = "";
-                    Console.WriteLine(input.FieldName);
                     if (input.FieldName == "Answers" && input.Value.Contains(":"))
                     {
                         Console.WriteLine("Processing Answers field correction");
