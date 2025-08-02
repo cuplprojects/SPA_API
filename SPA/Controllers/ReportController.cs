@@ -402,7 +402,7 @@ namespace SPA.Controllers
         {
             var flags = await _firstDbContext.Flags
                 .Where(p => p.ProjectId == ProjectId &&
-                            (EF.Functions.Like(p.Remarks, "%Mismatch in Question:%") ||
+                            (EF.Functions.Like(p.Remarks, "%Mismatch in%") ||
                              EF.Functions.Like(p.Remarks, "%Missing in Extracted%")))
                 .ToListAsync();
 
@@ -412,7 +412,10 @@ namespace SPA.Controllers
                 {
                     Barcode = g.Key,
                     FieldCounts = g.GroupBy(f => f.Field)
-                           .ToDictionary(fg => fg.Key, fg => fg.Count())
+                           .ToDictionary(fg => fg.Key, fg => fg.Count()),
+                    flags = g.ToList()
+
+
                 })
                 .ToList();
 
