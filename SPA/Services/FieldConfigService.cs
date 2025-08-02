@@ -925,7 +925,7 @@ List<string> absenteeRollNumbers)
                                                                                     corrected.BarCode,
                                                                                     key,
                                                                                     extractedAns ?? "null",
-                                                                                     $"Mismatch in Question: {q}",
+                                                                                     $"Mismatch in Question: {q} And ScannedAns : {correctedAns}",
                                                                                      ProjectId,
                                                                                      WhichDatabase
                                                                                  );
@@ -945,7 +945,7 @@ List<string> absenteeRollNumbers)
                                                       corrected.BarCode,
                                                       key,
                                                       extractedValue ?? "null",
-                                                       $"Mismatch in Both {key}",
+                                                       $"Mismatch in Both {key}, Corrected:{correctedValue}",
                                                        ProjectId,
                                                        WhichDatabase
                                                    );

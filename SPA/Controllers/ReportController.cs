@@ -396,15 +396,29 @@ namespace SPA.Controllers
             
           
         }
-
-       /* [HttpGet("ComparisonReport/{ProjectId}")]
-        public async Task<ActionResult<List<Flag>>> GetComparisonReport(int ProjectId,string whichDatabase)
+        [AllowAnonymous]
+        [HttpGet("ComparisonReport/{ProjectId}")]
+        public async Task<ActionResult<List<object>>> GetComparisonReport(int ProjectId, string whichDatabase)
         {
-            var flags = await _firstDbContext.Flags.
-                Where(p=>p.ProjectId.ToString() == ProjectId.ToString()
-            && (p.Remarks= "Mismatch in Question:" || p.Remarks = "Missing in Extracted"
-             ).ToListAsync();
-        }*/
+            var flags = await _firstDbContext.Flags
+                .Where(p => p.ProjectId == ProjectId &&
+                            (EF.Functions.Like(p.Remarks, "%Mismatch in Question:%") ||
+                             EF.Functions.Like(p.Remarks, "%Missing in Extracted%")))
+                .ToListAsync();
+
+            var groupedData = flags
+                .GroupBy(x => x.BarCode)
+                .Select(g => new
+                {
+                    Barcode = g.Key,
+                    FieldCounts = g.GroupBy(f => f.Field)
+                           .ToDictionary(fg => fg.Key, fg => fg.Count())
+                })
+                .ToList();
+
+            return Ok(groupedData);
+        }
+
         private bool ReportExists(int id, string WhichDatabase)
         {
             if (WhichDatabase == "Local")
