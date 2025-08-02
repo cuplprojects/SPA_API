@@ -397,6 +397,14 @@ namespace SPA.Controllers
           
         }
 
+       /* [HttpGet("ComparisonReport/{ProjectId}")]
+        public async Task<ActionResult<List<Flag>>> GetComparisonReport(int ProjectId,string whichDatabase)
+        {
+            var flags = await _firstDbContext.Flags.
+                Where(p=>p.ProjectId.ToString() == ProjectId.ToString()
+            && (p.Remarks= "Mismatch in Question:" || p.Remarks = "Missing in Extracted"
+             ).ToListAsync();
+        }*/
         private bool ReportExists(int id, string WhichDatabase)
         {
             if (WhichDatabase == "Local")

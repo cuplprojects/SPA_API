@@ -855,6 +855,9 @@ namespace SPA.Controllers
                     case "Scanned":
                         queryable = _firstDbContext.OMRdatas.Where(c => c.ProjectId == ProjectId);
                         break;
+                    case "Extracted":
+                        queryable = _firstDbContext.ExtractedOMRDatas.Where(c => c.ProjectId == ProjectId); 
+                        break;
                     case "Registration":
                         queryable = _firstDbContext.RegistrationDatas.Where(c => c.ProjectId == ProjectId);
                         break;
@@ -887,6 +890,9 @@ namespace SPA.Controllers
                 {
                     case "Scanned":
                         queryable = _secondDbContext.OMRdatas.Where(c => c.ProjectId == ProjectId);
+                        break;
+                    case "Extracted":
+                        queryable = _firstDbContext.ExtractedOMRDatas.Where(c => c.ProjectId == ProjectId);
                         break;
                     case "Registration":
                         queryable = _secondDbContext.RegistrationDatas.Where(c => c.ProjectId == ProjectId);
