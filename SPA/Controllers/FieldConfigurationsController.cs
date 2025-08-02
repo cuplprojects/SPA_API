@@ -271,12 +271,17 @@ namespace SPA.Controllers
             if (WhichDatabase == "Local")
             {
                 var fieldConfiguration = await _firstDbContext.FieldConfigs.FindAsync(id);
+                var fieldName = fieldConfiguration.FieldName;
+                var projectId = fieldConfiguration.ProjectId;
+                var flags = await _firstDbContext.Flags.Where(p=>p.ProjectId == projectId && p.Field == fieldName && p.isCorrected == false)
+                    .ToListAsync();
                 if (fieldConfiguration == null)
                 {
                     return NotFound();
                 }
 
                 _firstDbContext.FieldConfigs.Remove(fieldConfiguration);
+                _firstDbContext.Flags.RemoveRange(flags);
                 await _firstDbContext.SaveChangesAsync();
             }
             else

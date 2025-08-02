@@ -896,7 +896,7 @@ namespace SPA.Controllers
                 var correctedOmrList = await _firstDbContext.CorrectedOMRDatas.Where(co => co.ProjectId == projectId).Select(u => u.CorrectedOmrData).ToListAsync();
                 var keys = await _firstDbContext.Keyss.Where(k => k.ProjectId == projectId && k.CourseName == courseName).ToListAsync();
                 var responseConfigs = await _firstDbContext.ResponseConfigs.Where(u => u.ProjectId == projectId && u.CourseName == courseName).ToListAsync();
-                var existingScoreRollNumbers = await _firstDbContext.Scores.Where(s => s.ProjectId == projectId).Select(s => s.RollNumber).ToListAsync();
+                var existingScoreRollNumbers = await _firstDbContext.Scores.Where(s => s.ProjectId == projectId && s.CourseName == courseName).Select(s => s.RollNumber).ToListAsync();
                 var allRegistrationData = await _firstDbContext.RegistrationDatas.Where(rd => rd.ProjectId == projectId).ToListAsync();
 
 

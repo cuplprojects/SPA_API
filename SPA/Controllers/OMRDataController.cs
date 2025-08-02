@@ -145,6 +145,9 @@ namespace SPA.Controllers
                 {
                     var deletescanned = await _firstDbContext.OMRdatas
                         .Where(a => a.ProjectId == ProjectId).ToListAsync();
+                    var correctedscanned = await _firstDbContext.CorrectedOMRDatas.Where(a=>a.ProjectId == ProjectId).ToListAsync();
+                    var flags = await _firstDbContext.Flags.
+                        Where(a => a.ProjectId == ProjectId).ToListAsync();
 
                     if (!deletescanned.Any())
                     {
@@ -152,6 +155,8 @@ namespace SPA.Controllers
                     }
 
                     _firstDbContext.OMRdatas.RemoveRange(deletescanned);
+                    _firstDbContext.CorrectedOMRDatas.RemoveRange(correctedscanned);
+                    _firstDbContext.Flags.RemoveRange(flags);
                     var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                     if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                     {
