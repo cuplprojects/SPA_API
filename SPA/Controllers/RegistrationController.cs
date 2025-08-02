@@ -87,6 +87,11 @@ namespace SPA.Controllers
         {
             foreach (var row in mappedData)
             {
+                if (!row.ContainsKey("Roll Number") || string.IsNullOrWhiteSpace(row["Roll Number"]))
+                {
+                    continue; // Skip this row
+                }
+
                 var registrationData = new RegistrationData
                 {
                     RegistrationId = GetNextRegId(whichDatabase),
