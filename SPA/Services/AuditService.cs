@@ -64,70 +64,7 @@ namespace SPA.Services
 
         }
 
-        /*  public async Task PerformMismatchedWithExtractedAsync(string WhichDatabase, int ProjectId)
-          {
-              try
-              {
-                  var correctedOmrDataList = await _omrDataService.GetOmrDataListAsync(WhichDatabase, ProjectId);
-                  var extractedOmrDataList = await _omrDataService.GetExtractedOmrDataListAsync(WhichDatabase, ProjectId);
-                  var fieldConfigs = await _fieldConfigService.GetFieldConfigsAsync(WhichDatabase, ProjectId);
-                  Console.WriteLine($"Corrected OMR Data Count: {extractedOmrDataList.Count}");
-
-                  foreach (var corrected in correctedOmrDataList)
-                  {
-                      var extracted = extractedOmrDataList.FirstOrDefault(e => e.BarCode == corrected.BarCode);
-                      if (extracted == null)
-                      {
-                          Console.WriteLine($"No extracted data found for BarCode: {corrected.BarCode}");
-                          continue;
-                      }
-
-                      var correctedJson = JsonConvert.DeserializeObject<Dictionary<string, object>>(corrected.OmrData);
-                      var extractedJson = JsonConvert.DeserializeObject<Dictionary<string, object>>(extracted.ExtractedOmrData);
-
-                      foreach (var key in correctedJson.Keys)
-                      {
-                          if (!extractedJson.ContainsKey(key))
-                          {
-                              Console.WriteLine($"Missing key '{key}' in extracted data for BarCode: {corrected.BarCode}");
-                              continue;
-                          }
-
-                          // If it's the "Answers" field, do deep comparison
-                          if (key == "Answers")
-                          {
-                              var correctedAnswers = JsonConvert.DeserializeObject<Dictionary<string, string>>(correctedJson[key].ToString());
-                              var extractedAnswers = JsonConvert.DeserializeObject<Dictionary<string, string>>(extractedJson[key].ToString());
-
-                              foreach (var q in correctedAnswers.Keys)
-                              {
-                                  var correctedAns = correctedAnswers[q];
-                                  var extractedAns = extractedAnswers.ContainsKey(q) ? extractedAnswers[q] : null;
-
-                                  if (correctedAns != extractedAns)
-                                  {
-                                      Console.WriteLine($"Mismatch at BarCode: {corrected.BarCode}, Question: {q}, Corrected: '{correctedAns}', Extracted: '{extractedAns}'");
-                                  }
-                              }
-                          }
-                          else
-                          {
-                              var correctedValue = correctedJson[key]?.ToString();
-                              var extractedValue = extractedJson[key]?.ToString();
-
-                              if (correctedValue != extractedValue)
-                              {
-                                  Console.WriteLine($"Mismatch in field '{key}' at BarCode: {corrected.BarCode}, Corrected: '{correctedValue}', Extracted: '{extractedValue}'");
-                              }
-                          }
-                      }
-                  }
-              }
-              catch (Exception ex)
-              {
-                  Console.WriteLine("An error occurred while performing the audit: " + ex.Message);
-              }
-          }*/
+   
 
         public async Task PerformMismatchedWithExtractedAsync(string whichDatabase, int projectId)
         {
@@ -383,14 +320,14 @@ namespace SPA.Services
                 return true;
             }
 
-            if (int.TryParse(value, out int intValue))
+            if (long.TryParse(value, out long longValue))
             {
-                if (!string.IsNullOrEmpty(minRange) && intValue < int.Parse(minRange))
+                if (!string.IsNullOrEmpty(minRange) && longValue < long.Parse(minRange))
                 {
                     return false;
                 }
 
-                if (!string.IsNullOrEmpty(maxRange) && intValue > int.Parse(maxRange))
+                if (!string.IsNullOrEmpty(maxRange) && longValue > long.Parse(maxRange))
                 {
                     return false;
                 }

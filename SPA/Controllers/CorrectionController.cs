@@ -367,7 +367,7 @@ namespace SPA.Controllers
 
             // Find the OMR data by barcode
 
-
+            Console.WriteLine("FieldName" + input.FieldName);
             // Check if there is an existing corrected data entry 
 
             Dictionary<string, JsonElement> omrDataDict;
@@ -393,6 +393,7 @@ namespace SPA.Controllers
                 if (existingCorrectedData != null)
                 {
                     string originalValue = "";
+                    Console.WriteLine($"Checking FieldName: {input.FieldName}");
                     if (input.FieldName == "Answers" && input.Value.Contains(":"))
                     {
                         Console.WriteLine("Processing Answers field correction");
@@ -426,6 +427,42 @@ namespace SPA.Controllers
 
                         omrDataDict["Answers"] = JsonDocument.Parse($"\"{formattedAnswers}\"").RootElement;
                     }
+                    else if (input.FieldName == "Test Booklet Number")
+                    {
+                        Console.WriteLine("Entering in block");
+                        // Save the original value of the "Test Booklet Number" field
+                        string testoriginalValue = omrDataDict[input.FieldName].ToString();
+
+                        // First, save the original input value in case of failure later
+                        Console.WriteLine("Original Test Booklet Number: " + testoriginalValue);
+
+                        // Update the "Test Booklet Number" in the dictionary without parsing it to int
+                        omrDataDict[input.FieldName] = JsonDocument.Parse($"\"{input.Value}\"").RootElement;
+
+                        // Attempt to convert the input value to an integer after saving the original value
+                        string cleanedInputValue = input.Value.Trim();
+                        if (int.TryParse(cleanedInputValue, out int bookletNumber))
+                        {
+                            // If the conversion is successful, proceed with updating the "Booklet Series"
+                            Console.WriteLine("Test Booklet Number is valid. Proceeding with calculation...");
+
+                            // Calculate Booklet Series based on modulus by 8
+                            string bookletSeries = GetBookletSeries(bookletNumber);
+
+                            // Update the "Booklet Series" field in the dictionary
+                            omrDataDict["Booklet Series"] = JsonDocument.Parse($"\"{bookletSeries}\"").RootElement;
+                        }
+                        else
+                        {
+                            // Handle invalid input (non-integer value)
+                            Console.WriteLine("Invalid Test Booklet Number entered: " + input.Value);
+                            // You can set the original value to indicate that the input is invalid
+                            testoriginalValue = "[Invalid Number]";
+                        }
+
+                        // Optionally, log the original and updated values
+                    }
+
                     else
                     {
                         originalValue = omrDataDict[input.FieldName].ToString();
@@ -454,6 +491,7 @@ namespace SPA.Controllers
                 {
                     string originalValue = "";
                     Console.WriteLine(input.FieldName + input.Value);
+
                     if (input.FieldName == "Answers" && input.Value.Contains(":"))
                     {
                         // Extract question number and new answer value
@@ -486,6 +524,41 @@ namespace SPA.Controllers
                         var formattedAnswers = "{" + string.Join(",", answersDict.Select(kvp => $"{kvp.Key}:'{kvp.Value}'")) + "}";
 
                         omrDataDict["Answers"] = JsonDocument.Parse($"\"{formattedAnswers}\"").RootElement;
+                    }
+                    else if (input.FieldName == "Test Booklet Number")
+                    {
+                        Console.WriteLine("Entering in block");
+                        // Save the original value of the "Test Booklet Number" field
+                        string testoriginalValue = omrDataDict[input.FieldName].ToString();
+
+                        // First, save the original input value in case of failure later
+                        Console.WriteLine("Original Test Booklet Number: " + testoriginalValue);
+
+                        // Update the "Test Booklet Number" in the dictionary without parsing it to int
+                        omrDataDict[input.FieldName] = JsonDocument.Parse($"\"{input.Value}\"").RootElement;
+
+                        // Attempt to convert the input value to an integer after saving the original value
+                    
+                        if (int.TryParse(input.Value, out int bookletNumber))
+                        {
+                            // If the conversion is successful, proceed with updating the "Booklet Series"
+                            Console.WriteLine("Test Booklet Number is valid. Proceeding with calculation... + {cleaned}");
+
+                            // Calculate Booklet Series based on modulus by 8
+                            string bookletSeries = GetBookletSeries(bookletNumber);
+
+                            // Update the "Booklet Series" field in the dictionary
+                            omrDataDict["Booklet Series"] = JsonDocument.Parse($"\"{bookletSeries}\"").RootElement;
+                        }
+                        else
+                        {
+                            // Handle invalid input (non-integer value)
+                            Console.WriteLine("Invalid Test Booklet Number entered: " + input.Value);
+                            // You can set the original value to indicate that the input is invalid
+                            testoriginalValue = "[Invalid Number]";
+                        }
+
+                        // Optionally, log the original and updated values
                     }
                     else 
                     {
@@ -585,6 +658,25 @@ namespace SPA.Controllers
                 await _SecondDbcontext.SaveChangesAsync();
             }
             return CreatedAtAction(nameof(GetCorrectedOmrData), new { id = existingCorrectedData?.CorrectedId ?? 0 }, existingCorrectedData);
+        }
+
+        private string GetBookletSeries(int bookletNumber)
+        {
+            // Booklet series letters from A to H
+            char[] bookletSeries = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H' };
+
+            // Calculate modulus by 8
+            int index = bookletNumber % 8;
+            if (index == 0)
+            {
+                index = 7; // Corresponds to 'H'
+            }
+            else
+            {
+                index -= 1; // Adjust for valid letter range A-G
+            }
+            // Map the modulus result to a corresponding letter
+            return bookletSeries[index].ToString();
         }
 
         // GET: api/Correction/GetCorrectedOmrData/{id}
