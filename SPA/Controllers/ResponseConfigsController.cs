@@ -444,17 +444,25 @@ namespace SPA.Controllers
             if (WhichDatabase == "Local")
             {
                 var responseconfig = await _firstDbContext.ResponseConfigs.FindAsync(id);
-                var courseName = responseconfig.CourseName;
-                var projectId = responseconfig.ProjectId;
-                var keys = await _firstDbContext.Keyss.FirstOrDefaultAsync(p=>p.ProjectId == projectId && p.CourseName == courseName);
-                var score = await _firstDbContext.Scores.Where(s=>s.ProjectId == projectId && s.CourseName == courseName).ToListAsync();
                 if (responseconfig == null)
                 {
                     return NotFound();
                 }
+                var courseName = responseconfig.CourseName;
+                var projectId = responseconfig.ProjectId;
+                var keys = await _firstDbContext.Keyss.FirstOrDefaultAsync(p=>p.ProjectId == projectId && p.CourseName == courseName);
+                var score = await _firstDbContext.Scores.Where(s=>s.ProjectId == projectId && s.CourseName == courseName).ToListAsync();
+              
                 _firstDbContext.ResponseConfigs.Remove(responseconfig);
-                _firstDbContext.Keyss.Remove(keys);
-                _firstDbContext.Scores.RemoveRange(score);
+                if (keys != null)
+                {
+                    _firstDbContext.Keyss.Remove(keys);
+                }
+
+                if (score.Any())
+                {
+                    _firstDbContext.Scores.RemoveRange(score);
+                }
                 var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
@@ -469,13 +477,22 @@ namespace SPA.Controllers
                     return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
                 }
                 var responseconfig = await _secondDbContext.ResponseConfigs.FindAsync(id);
+                if (responseconfig == null)
+                {
+                    return NotFound();
+                }
                 var courseName = responseconfig.CourseName;
                 var projectId = responseconfig.ProjectId;
                 var keys = await _firstDbContext.Keyss.FirstOrDefaultAsync(p => p.ProjectId == projectId && p.CourseName == courseName);
                 var score = await _firstDbContext.Scores.Where(s => s.ProjectId == projectId && s.CourseName == courseName).ToListAsync();
-                if (responseconfig == null)
+                if (keys != null)
                 {
-                    return NotFound();
+                    _firstDbContext.Keyss.Remove(keys);
+                }
+
+                if (score.Any())
+                {
+                    _firstDbContext.Scores.RemoveRange(score);
                 }
                 _secondDbContext.ResponseConfigs.Remove(responseconfig);
                 _firstDbContext.Keyss.Remove(keys);
