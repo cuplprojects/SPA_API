@@ -59,7 +59,79 @@ namespace SPA.Controllers
 
             return Ok(fieldConfig.FieldAttributes.FirstOrDefault()?.Responses);
         }
-        
+
+        [AllowAnonymous]
+        [HttpGet("AmbiguityBySet")]
+        public async Task<IActionResult> GetAmbiguity(int projectId, string value, string courseName)
+        {
+            if (string.IsNullOrEmpty(value))
+                return BadRequest("Value cannot be null or empty.");
+
+            var keyRecord = await _firstDbContext.Keyss
+                .FirstOrDefaultAsync(k => k.ProjectId == projectId && k.CourseName == courseName);
+
+            if (keyRecord == null || string.IsNullOrWhiteSpace(keyRecord.KeyData))
+                return NotFound("Key not found for the provided ProjectId and CourseName.");
+
+            // Deserialize JSON to section-wise dictionary
+            var sectionMap = JsonConvert.DeserializeObject<Dictionary<string, SectionAnswerKey>>(keyRecord.KeyData);
+
+            var result = new List<object>();
+
+            foreach (var sectionEntry in sectionMap)
+            {
+                var sectionName = sectionEntry.Key;
+                var sectionData = sectionEntry.Value;
+
+                var setsWithMatches = new List<object>();
+
+                foreach (var set in sectionData.ANS)
+                {
+                    var matchingQuestions = set.Questions
+                        .Where(q => q.Answer == value)
+                        .Select(q => q.QuestionNo)
+                        .ToList();
+
+                    if (matchingQuestions.Any())
+                    {
+                        setsWithMatches.Add(new
+                        {
+                            Set = set.Set,
+                            QuestionNumbers = matchingQuestions
+                        });
+                    }
+                }
+
+                if (setsWithMatches.Any())
+                {
+                    result.Add(new
+                    {
+                        Section = sectionName,
+                        Sets = setsWithMatches
+                    });
+                }
+            }
+
+            return Ok(result);
+        }
+        public class SectionAnswerKey
+        {
+            public List<AnswerSet> ANS { get; set; }
+        }
+
+        public class AnswerSet
+        {
+            public string Set { get; set; }
+            public List<QuestionAnswer> Questions { get; set; }
+        }
+
+        public class QuestionAnswer
+        {
+            public string QuestionNo { get; set; }
+            public string Answer { get; set; }
+        }
+
+
         [AllowAnonymous]
         [HttpPost("allot-marks")]
         public async Task<IActionResult> AllotMarks(string WhichDatabase, [FromBody] List<AmbiguousQue> requests)

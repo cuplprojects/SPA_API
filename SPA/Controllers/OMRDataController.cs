@@ -353,7 +353,6 @@ namespace SPA.Controllers
                 {
                     var omrData = new OMRdata
                     {
-                        OmrDataId = GetNextScannedId(WhichDatabase),
                         ProjectId = ProjectId,
                         OmrData = JsonConvert.SerializeObject(row.Where(kv => kv.Key != "Barcode").ToDictionary(kv => kv.Key, kv => kv.Value)),
                         BarCode = row.ContainsKey("Barcode") ? row["Barcode"] : null,
