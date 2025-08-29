@@ -40,6 +40,7 @@ namespace SPA.Controllers
 
             try
             {
+                var extractedDataList = new List<ExtractedOMRData>();
                 foreach (var row in parsedData)
                 {
                     var extracteddata = new ExtractedOMRData
@@ -49,40 +50,13 @@ namespace SPA.Controllers
                         BarCode = row.ContainsKey("Barcode") ? row["Barcode"] : null,
                         Status = 1
                     };
-
-                    try
-                    {
-                        // Detach any existing tracked entity with the same OmrDataId
-                        if (WhichDatabase == "Local")
-                        {
-                            var existingEntity = _context.ExtractedOMRDatas.Local
-                                .FirstOrDefault(e => e.ExtractedOmrDataId == extracteddata.ExtractedOmrDataId);
-
-                            if (existingEntity != null)
-                            {
-                                _context.Entry(existingEntity).State = EntityState.Detached;
-                            }
-
-                            _context.ExtractedOMRDatas.Add(extracteddata);
-                            await _context.SaveChangesAsync();
-                        }
-                       
-                    }
-                    catch (DbUpdateException ex) when (ex.InnerException is MySqlConnector.MySqlException mysqlEx && mysqlEx.Number == 1062)
-                    {
-                        // Handle duplicate entry errors (MySQL error code 1062)
-                        Console.WriteLine($"Duplicate entry found for OMRDataId: {extracteddata.ExtractedOmrDataId}. Skipping this entry.");
-                        continue;
-                    }
-                    catch (Exception ex)
-                    {
-                        // Log the unexpected exception and continue with the next row
-                        Console.WriteLine($"An unexpected error occurred: {ex.Message}");
-                        continue;
-                    }
+                    extractedDataList.Add(extracteddata);
                 }
-
-                // Log the event after processing all rows
+                if (WhichDatabase == "Local")
+                {
+                    _context.ExtractedOMRDatas.AddRange(extractedDataList);
+                    await _context.SaveChangesAsync();
+                }
                 var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
@@ -91,6 +65,7 @@ namespace SPA.Controllers
 
                 return Ok("Data uploaded successfully");
             }
+           
             catch (DbUpdateException ex)
             {
                 return StatusCode(500, $"An error occurred: {ex.InnerException?.Message ?? ex.Message}");
