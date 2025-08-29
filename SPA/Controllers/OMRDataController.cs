@@ -332,18 +332,14 @@ namespace SPA.Controllers
             }
         }
 
-    
+
 
         [HttpPost("uploadcsv")]
         public async Task<IActionResult> UploadData(Cyphertext cyphertext, string WhichDatabase, int ProjectId)
         {
-            // Decrypt the cyphertext
             string decryptedJson = _securityService.Decrypt(cyphertext.cyphertextt);
-
-            // Deserialize the decrypted JSON into the List<Dictionary<string, string>> object
             List<Dictionary<string, string>> parsedData = JsonConvert.DeserializeObject<List<Dictionary<string, string>>>(decryptedJson);
 
-            // Validate the list of dictionaries
             if (parsedData == null || parsedData.Count == 0)
             {
                 return BadRequest("No data received");
@@ -351,6 +347,8 @@ namespace SPA.Controllers
 
             try
             {
+                var omrDataList = new List<OMRdata>();
+
                 foreach (var row in parsedData)
                 {
                     var omrData = new OMRdata
@@ -362,56 +360,27 @@ namespace SPA.Controllers
                         Status = 1
                     };
 
-                    try
-                    {
-                        // Detach any existing tracked entity with the same OmrDataId
-                        if (WhichDatabase == "Local")
-                        {
-                            var existingEntity = _firstDbContext.OMRdatas.Local
-                                .FirstOrDefault(e => e.OmrDataId == omrData.OmrDataId);
-
-                            if (existingEntity != null)
-                            {
-                                _firstDbContext.Entry(existingEntity).State = EntityState.Detached;
-                            }
-
-                            _firstDbContext.OMRdatas.Add(omrData);
-                            await _firstDbContext.SaveChangesAsync();
-                        }
-                        else
-                        {
-                            if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
-                            {
-                                return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
-                            }
-
-                            var existingEntity = _secondDbContext.OMRdatas.Local
-                                .FirstOrDefault(e => e.OmrDataId == omrData.OmrDataId);
-
-                            if (existingEntity != null)
-                            {
-                                _secondDbContext.Entry(existingEntity).State = EntityState.Detached;
-                            }
-
-                            _secondDbContext.OMRdatas.Add(omrData);
-                            await _secondDbContext.SaveChangesAsync();
-                        }
-                    }
-                    catch (DbUpdateException ex) when (ex.InnerException is MySqlConnector.MySqlException mysqlEx && mysqlEx.Number == 1062)
-                    {
-                        // Handle duplicate entry errors (MySQL error code 1062)
-                        Console.WriteLine($"Duplicate entry found for OMRDataId: {omrData.OmrDataId}. Skipping this entry.");
-                        continue;
-                    }
-                    catch (Exception ex)
-                    {
-                        // Log the unexpected exception and continue with the next row
-                        Console.WriteLine($"An unexpected error occurred: {ex.Message}");
-                        continue;
-                    }
+                    omrDataList.Add(omrData);
                 }
 
-                // Log the event after processing all rows
+                // Use bulk insertion
+                if (WhichDatabase == "Local")
+                {
+                    _firstDbContext.OMRdatas.AddRange(omrDataList);
+                    await _firstDbContext.SaveChangesAsync();
+                }
+                else
+                {
+                    if (!await _connectionChecker.IsOnlineDatabaseAvailableAsync())
+                    {
+                        return StatusCode(StatusCodes.Status503ServiceUnavailable, "Online database is not available.");
+                    }
+
+                    _secondDbContext.OMRdatas.AddRange(omrDataList);
+                    await _secondDbContext.SaveChangesAsync();
+                }
+
+                // Log event
                 var userIdClaim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
@@ -429,6 +398,7 @@ namespace SPA.Controllers
                 return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
             }
         }
+
 
         [AllowAnonymous]
         [HttpPost("upload-batch")]

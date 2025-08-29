@@ -1058,14 +1058,24 @@ namespace SPA.Controllers
             try
             {
                 // ✅ OPTIMIZATION 11: Fast booklet set determination
-                string bookletSet = hasBookletSeriesField ? (string)omrDataObject["Booklet Series"] ?? "A" : "A";
+                string bookletSet;
+                if (hasBookletSeriesField)
+                {
+                    // Use whatever is present, even if null or empty
+                    bookletSet = (string)omrDataObject["Booklet Series"];
+                }
+                else
+                {
+                    // Only assign "A" if the field is entirely absent
+                    bookletSet = "A";
+                }
 
                 // ✅ OPTIMIZATION 12: Pre-parse candidate answers once
                 var candidateAnswers = JsonConvert.DeserializeObject<Dictionary<string, string>>(omrDataObject["Answers"].ToString());
 
                 var ambiguousQuestions = _firstDbContext.AmbiguousQues
-    .Where(aq => aq.ProjectId == projectId && aq.CourseName == courseName)
-    .ToList();
+              .Where(aq => aq.ProjectId == projectId && aq.CourseName == courseName)
+              .ToList();
 
                 var scoreSectionList = new List<SectionResult>();
 
@@ -1131,7 +1141,8 @@ namespace SPA.Controllers
 
                         if (candidateAnswers.TryGetValue(questionNo, out var givenAnswer))
                         {
-                            bool isCorrect = string.Equals(givenAnswer, correctAnswer, StringComparison.OrdinalIgnoreCase);
+                            var correctAnswers = correctAnswer.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+                            bool isCorrect = correctAnswers.Any(ans=>(string.Equals(givenAnswer, ans, StringComparison.OrdinalIgnoreCase)));
 
                             resultsList.Add(new
                             {
